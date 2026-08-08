@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { register, login, getMe, logout } from '../controllers/auth.controller';
 import { protect } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { registerSchema, loginSchema } from '../validators/auth.validator';
 
 const router = Router();
 
 // Public routes
-router.post('/register', register);
-router.post('/login', login);
+router.post('/register', validate(registerSchema), register);
+router.post('/login', validate(loginSchema), login);
 router.post('/logout', logout);
 
 // Protected routes

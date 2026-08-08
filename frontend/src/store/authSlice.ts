@@ -1,39 +1,60 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { User } from '../types';
-import { mockUser } from '../services/mockData';
+import { getStoredToken, setStoredToken, clearStoredToken } from '../utils/storage';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   token: string | null;
-  isLoading: boolean;
+  /**
+   * True until a stored token has been exchanged for a user via /auth/me.
+   * Route guards must wait for this to settle, otherwise a page refresh would
+   * bounce an authenticated user to /login.
+   */
+  isInitializing: boolean;
 }
 
+const existingToken = getStoredToken();
+
 const initialState: AuthState = {
-  user: mockUser, // Default logged-in for instant portfolio preview
-  isAuthenticated: true,
-  token: 'mock_jwt_token_nexus_2026',
-  isLoading: false,
+  user: null,
+  isAuthenticated: false,
+  token: existingToken,
+  // Only worth restoring a session if a token survived the reload
+  isInitializing: Boolean(existingToken),
 };
 
 export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setUser: (state, action: PayloadAction<User | null>) => {
+    /** A completed login/registration: token + user arrive together. */
+    setCredentials: (state, action: PayloadAction<{ token: string; user: User }>) => {
+      setStoredToken(action.payload.token);
+      state.token = action.payload.token;
+      state.user = action.payload.user;
+      state.isAuthenticated = true;
+      state.isInitializing = false;
+    },
+    /** A session restored from a stored token via /auth/me. */
+    setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
-      state.isAuthenticated = !!action.payload;
+      state.isAuthenticated = true;
+      state.isInitializing = false;
     },
     logout: (state) => {
+      clearStoredToken();
       state.user = null;
       state.isAuthenticated = false;
       state.token = null;
+      state.isInitializing = false;
     },
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.isLoading = action.payload;
+    /** Session restore finished without producing a valid session. */
+    finishInitializing: (state) => {
+      state.isInitializing = false;
     },
   },
 });
 
-export const { setUser, logout, setLoading } = authSlice.actions;
+export const { setCredentials, setUser, logout, finishInitializing } = authSlice.actions;
 export default authSlice.reducer;

@@ -1,3 +1,7 @@
+// ─── Server-backed types ─────────────────────────────────────────────────────
+// These mirror the live API responses. Mongo documents are returned with `_id`;
+// only the auth endpoints project the user down to `id`.
+
 // User Types
 export interface User {
   id: string;
@@ -7,42 +11,51 @@ export interface User {
   avatar?: string;
   authProvider: 'email' | 'google' | 'github';
   emailVerified: boolean;
-  role: 'Owner' | 'Admin' | 'Maintainer' | 'Developer' | 'Viewer';
   createdAt: string;
 }
+
+// Organization-scoped role (SRS 2.7). There is no global user role — authority
+// is always relative to an organization.
+export type OrgRole = 'Owner' | 'Admin' | 'Maintainer' | 'Developer' | 'Viewer';
 
 // Organization Types
 export interface Organization {
-  id: string;
+  _id: string;
   name: string;
   slug: string;
-  logo?: string;
+  logo?: string | null;
   ownerId: string;
+  plan: 'free' | 'pro';
+  /** The authenticated user's role in this organization. */
+  memberRole: OrgRole;
   memberCount: number;
-  workspaceCount: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrganizationMember {
-  id: string;
+  _id: string;
   organizationId: string;
-  user: User;
-  role: 'Owner' | 'Admin' | 'Maintainer' | 'Developer' | 'Viewer';
+  userId: Pick<User, 'id' | 'fullName' | 'username' | 'email' | 'avatar'>;
+  role: OrgRole;
   joinedAt: string;
 }
 
 // Workspace Types
 export interface Workspace {
-  id: string;
+  _id: string;
   organizationId: string;
   name: string;
   description: string;
   terminalEnabled: boolean;
   aiEnabled: boolean;
-  createdBy: string;
-  projectCount: number;
+  createdBy: string | Pick<User, 'id' | 'fullName' | 'username' | 'avatar'>;
+  createdAt: string;
   updatedAt: string;
 }
+
+// ─── Mock-backed types ───────────────────────────────────────────────────────
+// Still served from services/mockData until their own milestones land.
 
 // Project Types
 export type SupportedTemplate =

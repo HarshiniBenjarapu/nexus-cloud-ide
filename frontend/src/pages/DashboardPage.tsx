@@ -4,15 +4,26 @@ import { useNavigate } from 'react-router-dom';
 import { RootState } from '../app/store';
 import { setActiveProject } from '../store/projectSlice';
 import { showToast } from '../store/uiSlice';
-import { Cloud, Plus, Star, Folder, GitBranch, Play, Layers, Shield, Sparkles, Terminal, HardDrive } from 'lucide-react';
+import { useOrganizations } from '../hooks/useOrganizations';
+import { useWorkspaces } from '../hooks/useWorkspaces';
+import { useCanAdminister } from '../hooks/useCanAdminister';
+import { CreateWorkspaceDialog } from '../components/workspace/CreateWorkspaceDialog';
+import { Cloud, Plus, Star, Folder, GitBranch, Play, Layers, Terminal, HardDrive } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { activeOrg, workspaces } = useSelector((state: RootState) => state.workspace);
+  const { activeOrg } = useOrganizations();
+  const { workspaces } = useWorkspaces(activeOrg?._id);
+  const { canAdminister } = useCanAdminister();
   const { projects } = useSelector((state: RootState) => state.project);
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
+  const [isCreateWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
+
+  // Only Owners and Admins may create workspaces (SRS 2.7)
+  const canCreateWorkspace =
+    activeOrg?.memberRole === 'Owner' || activeOrg?.memberRole === 'Admin';
 
   const handleLaunchProject = (proj: any) => {
     dispatch(setActiveProject(proj));
@@ -37,12 +48,14 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate('/admin')}
-            className="px-3.5 py-1.5 bg-[#20242B] hover:bg-white/10 text-xs font-medium text-white border border-white/10 rounded-xl transition-all"
-          >
-            Admin Dashboard
-          </button>
+          {canAdminister && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="px-3.5 py-1.5 bg-[#20242B] hover:bg-white/10 text-xs font-medium text-white border border-white/10 rounded-xl transition-all"
+            >
+              Admin Dashboard
+            </button>
+          )}
 
           <button
             onClick={() => navigate('/ide')}
@@ -66,6 +79,15 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-3">
+            {canCreateWorkspace && (
+              <button
+                onClick={() => setCreateWorkspaceOpen(true)}
+                className="px-4 py-2.5 bg-[#20242B] hover:bg-white/10 text-white text-xs font-medium rounded-xl flex items-center space-x-2 transition-all border border-white/10"
+              >
+                <Layers className="w-4 h-4" />
+                <span>New Workspace</span>
+              </button>
+            )}
             <button
               onClick={() => dispatch(showToast({ message: 'Opening Create Project wizard...', type: 'info' }))}
               className="px-4 py-2.5 bg-[#C58A42] hover:bg-[#D69A4E] text-white text-xs font-medium rounded-xl flex items-center space-x-2 transition-all shadow-lg shadow-[#C58A42]/20"
@@ -117,6 +139,55 @@ export const DashboardPage: React.FC = () => {
               <div className="text-xs text-[#9DA5B4]">Cloud Storage Used</div>
             </div>
           </div>
+        </div>
+
+        {/* Workspaces Section — live data from the API */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <h3 className="text-base font-bold text-white">Workspaces</h3>
+            <span className="text-[11px] text-[#9DA5B4]">
+              {activeOrg ? activeOrg.name : 'No organization selected'}
+            </span>
+          </div>
+
+          {workspaces.length === 0 ? (
+            <div className="p-8 bg-[#171A1F] border border-dashed border-white/10 rounded-2xl text-center space-y-2">
+              <Layers className="w-6 h-6 text-[#9DA5B4]/50 mx-auto" />
+              <p className="text-xs text-[#9DA5B4]">
+                No workspaces yet in this organization.
+              </p>
+              {canCreateWorkspace && (
+                <button
+                  onClick={() => setCreateWorkspaceOpen(true)}
+                  className="text-xs text-[#C58A42] font-semibold hover:underline"
+                >
+                  Create your first workspace
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {workspaces.map((ws) => (
+                <div
+                  key={ws._id}
+                  className="p-4 bg-[#171A1F] border border-white/10 rounded-2xl space-y-2 hover:border-[#4D8DFF]/40 transition-all"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-[#4D8DFF]/10 border border-[#4D8DFF]/30 rounded-xl text-[#4D8DFF]">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-bold text-white truncate">{ws.name}</h4>
+                  </div>
+                  {ws.description && (
+                    <p className="text-xs text-[#9DA5B4] line-clamp-2 leading-relaxed">{ws.description}</p>
+                  )}
+                  <div className="pt-2 border-t border-white/5 text-[11px] text-[#9DA5B4]">
+                    Created {new Date(ws.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Projects Section */}
@@ -178,6 +249,14 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {activeOrg && (
+        <CreateWorkspaceDialog
+          orgId={activeOrg._id}
+          isOpen={isCreateWorkspaceOpen}
+          onClose={() => setCreateWorkspaceOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -1,20 +1,23 @@
 import { Response, NextFunction } from 'express';
 import { Workspace } from '../models/Workspace';
-import { OrganizationMember } from '../models/OrganizationMember';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { AuthorizedRequest } from '../middleware/authorize.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/organizations/:orgId/workspaces
+// Requires: organization membership (any role).
 // ─────────────────────────────────────────────────────────────────────────────
 export const getWorkspaces = async (
-  req: AuthRequest,
+  req: AuthorizedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { orgId } = req.params;
-    const workspaces = await Workspace.find({ organizationId: orgId })
+    const workspaces = await Workspace.find({
+      organizationId: req.organization!._id,
+      deletedAt: null,
+    })
       .populate('createdBy', 'fullName username avatar')
+      .sort({ updatedAt: -1 })
       .lean();
 
     res.status(200).json({
@@ -29,23 +32,19 @@ export const getWorkspaces = async (
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/organizations/:orgId/workspaces
+// Requires: Owner or Admin ("create workspaces", SRS 2.7).
 // ─────────────────────────────────────────────────────────────────────────────
 export const createWorkspace = async (
-  req: AuthRequest,
+  req: AuthorizedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { orgId } = req.params;
     const { name, description, terminalEnabled, aiEnabled } = req.body;
 
-    if (!name) {
-      res.status(400).json({ success: false, message: 'Workspace name is required.' });
-      return;
-    }
-
     const workspace = await Workspace.create({
-      organizationId: orgId,
+      // Taken from the authorized organization, never from the request body
+      organizationId: req.organization!._id,
       name: name.trim(),
       description: description || '',
       terminalEnabled: terminalEnabled !== undefined ? terminalEnabled : true,
@@ -65,24 +64,22 @@ export const createWorkspace = async (
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/workspaces/:workspaceId
+// Requires: membership of the owning organization (any role).
 // ─────────────────────────────────────────────────────────────────────────────
 export const getWorkspace = async (
-  req: AuthRequest,
+  req: AuthorizedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { workspaceId } = req.params;
-    const workspace = await Workspace.findById(workspaceId)
-      .populate('createdBy', 'fullName username avatar')
-      .lean();
+    // Resolved and access-checked by authorizeWorkspace
+    const workspace = await req.workspace!.populate('createdBy', 'fullName username avatar');
 
-    if (!workspace) {
-      res.status(404).json({ success: false, message: 'Workspace not found.' });
-      return;
-    }
-
-    res.status(200).json({ success: true, message: 'Workspace retrieved.', data: { workspace } });
+    res.status(200).json({
+      success: true,
+      message: 'Workspace retrieved.',
+      data: { workspace: workspace.toObject(), memberRole: req.membership!.role },
+    });
   } catch (error) {
     next(error);
   }
@@ -90,19 +87,26 @@ export const getWorkspace = async (
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/workspaces/:workspaceId
+// Requires: Owner or Admin ("manage workspaces", SRS 2.7).
 // ─────────────────────────────────────────────────────────────────────────────
 export const updateWorkspace = async (
-  req: AuthRequest,
+  req: AuthorizedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { workspaceId } = req.params;
     const { name, description, terminalEnabled, aiEnabled } = req.body;
 
-    const workspace = await Workspace.findByIdAndUpdate(
-      workspaceId,
-      { name, description, terminalEnabled, aiEnabled },
+    // Only apply fields the client actually sent
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (terminalEnabled !== undefined) updates.terminalEnabled = terminalEnabled;
+    if (aiEnabled !== undefined) updates.aiEnabled = aiEnabled;
+
+    const workspace = await Workspace.findOneAndUpdate(
+      { _id: req.workspace!._id, deletedAt: null },
+      updates,
       { new: true, runValidators: true }
     );
 
@@ -111,7 +115,11 @@ export const updateWorkspace = async (
       return;
     }
 
-    res.status(200).json({ success: true, message: 'Workspace updated.', data: { workspace } });
+    res.status(200).json({
+      success: true,
+      message: 'Workspace updated.',
+      data: { workspace },
+    });
   } catch (error) {
     next(error);
   }
@@ -119,29 +127,24 @@ export const updateWorkspace = async (
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/workspaces/:workspaceId
+// Requires: Owner or Admin ("delete workspaces", SRS 2.7).
+// Soft delete (SRS 6.21) — the record is retained for recovery.
 // ─────────────────────────────────────────────────────────────────────────────
 export const deleteWorkspace = async (
-  req: AuthRequest,
+  req: AuthorizedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { workspaceId } = req.params;
-    const workspace = await Workspace.findById(workspaceId);
+    const workspace = req.workspace!;
 
-    if (!workspace) {
-      res.status(404).json({ success: false, message: 'Workspace not found.' });
-      return;
-    }
+    workspace.deletedAt = new Date();
+    await workspace.save();
 
-    // Only the creator or org Owner/Admin can delete
-    if (String(workspace.createdBy) !== String(req.user._id)) {
-      res.status(403).json({ success: false, message: 'Only the workspace creator can delete it.' });
-      return;
-    }
-
-    await Workspace.findByIdAndDelete(workspaceId);
-    res.status(200).json({ success: true, message: 'Workspace deleted successfully.' });
+    res.status(200).json({
+      success: true,
+      message: 'Workspace deleted successfully.',
+    });
   } catch (error) {
     next(error);
   }

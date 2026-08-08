@@ -1,62 +1,9 @@
-import { User, Organization, Workspace, Project, FileNode, GitStatus, DatabaseConnection, AIConversation, Deployment } from '../types';
+import { Project, FileNode, GitStatus, DatabaseConnection, AIConversation, Deployment } from '../types';
 
-export const mockUser: User = {
-  id: 'usr_101',
-  fullName: 'Alex Developer',
-  username: 'alexdev',
-  email: 'alex@nexuside.com',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-  authProvider: 'email',
-  emailVerified: true,
-  role: 'Owner',
-  createdAt: '2026-01-15T08:00:00Z',
-};
-
-export const mockOrganizations: Organization[] = [
-  {
-    id: 'org_1',
-    name: 'Nexus Cloud Systems',
-    slug: 'nexus-cloud',
-    ownerId: 'usr_101',
-    memberCount: 8,
-    workspaceCount: 3,
-    createdAt: '2026-01-15T08:30:00Z',
-  },
-  {
-    id: 'org_2',
-    name: 'Personal Labs',
-    slug: 'personal-labs',
-    ownerId: 'usr_101',
-    memberCount: 1,
-    workspaceCount: 2,
-    createdAt: '2026-02-01T10:15:00Z',
-  },
-];
-
-export const mockWorkspaces: Workspace[] = [
-  {
-    id: 'ws_1',
-    organizationId: 'org_1',
-    name: 'FullStack Cloud Apps',
-    description: 'Main cloud web applications workspace with microservices',
-    terminalEnabled: true,
-    aiEnabled: true,
-    createdBy: 'usr_101',
-    projectCount: 4,
-    updatedAt: '2026-08-04T12:00:00Z',
-  },
-  {
-    id: 'ws_2',
-    organizationId: 'org_1',
-    name: 'AI & Data Science Lab',
-    description: 'Python & machine learning experiments',
-    terminalEnabled: true,
-    aiEnabled: true,
-    createdBy: 'usr_101',
-    projectCount: 2,
-    updatedAt: '2026-08-03T16:30:00Z',
-  },
-];
+// Users, organizations and workspaces now come from the real API — see
+// services/{auth,organization,workspace}.service.ts. The fixtures below still
+// back the panels whose backend modules are not built yet (projects, files,
+// git, database, AI, deployments) and will be removed as each module lands.
 
 export const mockProjects: Project[] = [
   {

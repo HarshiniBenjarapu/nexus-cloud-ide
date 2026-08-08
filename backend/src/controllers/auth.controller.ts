@@ -14,13 +14,14 @@ const signToken = (userId: string): string => {
 };
 
 // ─── Helper: Build safe user response object ─────────────────────────────────
+// Note: no `role` here. A user has no global role — authority is per
+// organization and is returned as `memberRole` on each organization.
 const buildUserResponse = (user: IUser) => ({
   id: user._id,
   fullName: user.fullName,
   username: user.username,
   email: user.email,
   avatar: user.avatar,
-  role: user.role,
   emailVerified: user.emailVerified,
   authProvider: user.authProvider,
   createdAt: user.createdAt,
@@ -35,30 +36,15 @@ export const register = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    // Shape, length and format are already guaranteed by registerSchema
     const { fullName, username, email, password } = req.body;
-
-    if (!fullName || !username || !email || !password) {
-      res.status(400).json({
-        success: false,
-        message: 'fullName, username, email, and password are all required.',
-      });
-      return;
-    }
-
-    if (password.length < 8) {
-      res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters long.',
-      });
-      return;
-    }
 
     // Check for existing email or username
     const existing = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }],
+      $or: [{ email }, { username }],
     });
     if (existing) {
-      const field = existing.email === email.toLowerCase() ? 'email' : 'username';
+      const field = existing.email === email ? 'email' : 'username';
       res.status(409).json({
         success: false,
         message: `An account with this ${field} already exists.`,
@@ -68,11 +54,10 @@ export const register = async (
 
     // Create User
     const user = await User.create({
-      fullName: fullName.trim(),
-      username: username.toLowerCase().trim(),
-      email: email.toLowerCase().trim(),
+      fullName,
+      username,
+      email,
       passwordHash: password,
-      role: 'Owner',
     });
 
     // Auto-create a personal organization for this user
@@ -116,18 +101,11 @@ export const login = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    // Shape and format are already guaranteed by loginSchema
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      res.status(400).json({
-        success: false,
-        message: 'Email and password are required.',
-      });
-      return;
-    }
-
     // Explicitly select passwordHash since it's excluded by default
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash');
+    const user = await User.findOne({ email }).select('+passwordHash');
     if (!user) {
       res.status(401).json({
         success: false,

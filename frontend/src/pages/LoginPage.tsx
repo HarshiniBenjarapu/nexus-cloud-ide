@@ -1,26 +1,51 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { showToast } from '../store/uiSlice';
-import { setUser } from '../store/authSlice';
-import { mockUser } from '../services/mockData';
+import { useLogin } from '../hooks/useAuth';
 import { Cloud, Lock, Mail, Globe, Code } from 'lucide-react';
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email address is required.')
+    .email('Please enter a valid email address.'),
+  password: z.string().min(1, 'Password is required.'),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { register, handleSubmit } = useForm({
-    defaultValues: {
-      email: 'alex@nexuside.com',
-      password: 'password123',
-    },
+  const login = useLogin();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
   });
 
-  const onSubmit = (data: any) => {
-    dispatch(setUser(mockUser));
-    dispatch(showToast({ message: 'Authentication successful! Welcome to Nexus Cloud IDE.', type: 'success' }));
-    navigate('/dashboard');
+  const onSubmit = (data: LoginFormValues) => {
+    login.mutate(data, {
+      onSuccess: () => {
+        dispatch(
+          showToast({
+            message: 'Authentication successful! Welcome to Nexus Cloud IDE.',
+            type: 'success',
+          })
+        );
+      },
+      onError: (error: Error) => {
+        dispatch(showToast({ message: error.message, type: 'error' }));
+      },
+    });
   };
 
   return (
@@ -36,7 +61,7 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-[#9DA5B4]">Email Address</label>
             <div className="relative">
@@ -44,33 +69,43 @@ export const LoginPage: React.FC = () => {
               <input
                 {...register('email')}
                 type="email"
-                required
+                autoComplete="email"
                 className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-[#9DA5B4]/50 focus:outline-none focus:border-[#C58A42]"
               />
             </div>
+            {errors.email && <p className="text-[11px] text-[#E65A5A]">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-[#9DA5B4]">Password</label>
-              <a href="#" className="text-[11px] text-[#C58A42] hover:underline">Forgot password?</a>
+              <span
+                className="text-[11px] text-[#9DA5B4]/50"
+                title="Password reset is coming soon"
+              >
+                Forgot password?
+              </span>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-[#9DA5B4] absolute left-3 top-3" />
               <input
                 {...register('password')}
                 type="password"
-                required
+                autoComplete="current-password"
                 className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-[#C58A42]"
               />
             </div>
+            {errors.password && (
+              <p className="text-[11px] text-[#E65A5A]">{errors.password.message}</p>
+            )}
           </div>
 
           <button
             type="submit"
-            className="w-full py-3 bg-[#C58A42] hover:bg-[#D69A4E] text-white font-semibold rounded-xl text-xs transition-all shadow-lg shadow-[#C58A42]/20"
+            disabled={login.isPending}
+            className="w-full py-3 bg-[#C58A42] hover:bg-[#D69A4E] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-xs transition-all shadow-lg shadow-[#C58A42]/20"
           >
-            Sign In
+            {login.isPending ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
 
@@ -79,22 +114,29 @@ export const LoginPage: React.FC = () => {
           <span className="bg-[#171A1F] px-3 text-[10px] text-[#9DA5B4] uppercase tracking-wider">Or continue with</span>
         </div>
 
-        {/* OAuth Buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => onSubmit({})}
-            className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-colors"
-          >
-            <Code className="w-4 h-4 text-[#C58A42]" />
-            <span>GitHub</span>
-          </button>
-          <button
-            onClick={() => onSubmit({})}
-            className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-colors"
-          >
-            <Globe className="w-4 h-4 text-[#4D8DFF]" />
-            <span>Google</span>
-          </button>
+        {/* OAuth is not implemented yet — SRS Module 1, a later milestone. */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              disabled
+              title="GitHub sign-in is coming soon"
+              className="py-2.5 bg-[#20242B] border border-white/10 rounded-xl text-xs font-medium text-white/40 flex items-center justify-center space-x-2 cursor-not-allowed"
+            >
+              <Code className="w-4 h-4 text-[#C58A42]/40" />
+              <span>GitHub</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Google sign-in is coming soon"
+              className="py-2.5 bg-[#20242B] border border-white/10 rounded-xl text-xs font-medium text-white/40 flex items-center justify-center space-x-2 cursor-not-allowed"
+            >
+              <Globe className="w-4 h-4 text-[#4D8DFF]/40" />
+              <span>Google</span>
+            </button>
+          </div>
+          <p className="text-center text-[10px] text-[#9DA5B4]/60">Coming soon</p>
         </div>
 
         <p className="text-center text-xs text-[#9DA5B4]">

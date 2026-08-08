@@ -57,21 +57,9 @@ export const protect = async (
 };
 
 // ──────────────────────────────────────────────────
-// Restrict: Role-based access control middleware
+// Role-based access control lives in authorize.middleware.ts.
+//
+// The previous `restrictTo` here read the global User.role field, which has
+// been removed: permissions are organization-scoped (SRS 2.7 / 6.7) and are
+// resolved from the organizationMembers collection.
 // ──────────────────────────────────────────────────
-export const restrictTo = (...roles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({ success: false, message: 'Authentication required.' });
-      return;
-    }
-    if (!roles.includes(req.user.role)) {
-      res.status(403).json({
-        success: false,
-        message: `Access forbidden. Required role: [${roles.join(' | ')}].`,
-      });
-      return;
-    }
-    next();
-  };
-};

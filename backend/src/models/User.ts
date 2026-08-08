@@ -9,7 +9,6 @@ export interface IUser extends Document {
   avatar?: string;
   authProvider: 'email' | 'google' | 'github';
   emailVerified: boolean;
-  role: 'Owner' | 'Admin' | 'Maintainer' | 'Developer' | 'Viewer';
   isSuspended: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
   createdAt: Date;
@@ -61,11 +60,8 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
-    role: {
-      type: String,
-      enum: ['Owner', 'Admin', 'Maintainer', 'Developer', 'Viewer'],
-      default: 'Developer',
-    },
+    // NOTE: there is deliberately no global `role` field here. Authority is
+    // organization-scoped and lives in organizationMembers (SRS 2.7 / 6.7).
     isSuspended: {
       type: Boolean,
       default: false,

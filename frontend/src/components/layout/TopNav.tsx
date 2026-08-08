@@ -1,14 +1,18 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../app/store';
-import { setActiveWorkspace, setActiveOrg } from '../../store/workspaceSlice';
+import { setActiveWorkspaceId, setActiveOrgId } from '../../store/workspaceSlice';
 import { toggleAIPanel, showToast } from '../../store/uiSlice';
-import { Cloud, Play, Rocket, Share2, Sparkles, ChevronDown, User as UserIcon, GitBranch, Layers } from 'lucide-react';
+import { useOrganizations } from '../../hooks/useOrganizations';
+import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { useLogout } from '../../hooks/useAuth';
+import { Cloud, Play, Rocket, Share2, Sparkles, ChevronDown, GitBranch, Layers, LogOut } from 'lucide-react';
 
 export const TopNav: React.FC = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { activeOrg, organizations, activeWorkspace, workspaces } = useSelector((state: RootState) => state.workspace);
+  const { organizations, activeOrg } = useOrganizations();
+  const { workspaces, activeWorkspace } = useWorkspaces(activeOrg?._id);
   const { activeProject } = useSelector((state: RootState) => state.project);
   const { isAIPanelOpen } = useSelector((state: RootState) => state.ui);
 
@@ -23,6 +27,13 @@ export const TopNav: React.FC = () => {
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     dispatch(showToast({ message: 'Workspace link copied to clipboard!', type: 'success' }));
+  };
+
+  const logout = useLogout();
+
+  const handleLogout = () => {
+    logout();
+    dispatch(showToast({ message: 'Signed out successfully.', type: 'info' }));
   };
 
   return (
@@ -57,10 +68,10 @@ export const TopNav: React.FC = () => {
               <div className="px-3 py-1.5 text-[10px] font-semibold text-[#9DA5B4] uppercase tracking-wider">Organizations</div>
               {organizations.map((org) => (
                 <button
-                  key={org.id}
-                  onClick={() => dispatch(setActiveOrg(org))}
+                  key={org._id}
+                  onClick={() => dispatch(setActiveOrgId(org._id))}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-[#C58A42]/20 flex items-center justify-between ${
-                    org.id === activeOrg?.id ? 'text-[#C58A42] font-semibold' : 'text-white'
+                    org._id === activeOrg?._id ? 'text-[#C58A42] font-semibold' : 'text-white'
                   }`}
                 >
                   <span className="truncate">{org.name}</span>
@@ -83,10 +94,10 @@ export const TopNav: React.FC = () => {
               <div className="px-3 py-1.5 text-[10px] font-semibold text-[#9DA5B4] uppercase tracking-wider">Workspaces</div>
               {workspaces.map((ws) => (
                 <button
-                  key={ws.id}
-                  onClick={() => dispatch(setActiveWorkspace(ws))}
+                  key={ws._id}
+                  onClick={() => dispatch(setActiveWorkspaceId(ws._id))}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-[#C58A42]/20 flex items-center justify-between ${
-                    ws.id === activeWorkspace?.id ? 'text-[#C58A42] font-semibold' : 'text-white'
+                    ws._id === activeWorkspace?._id ? 'text-[#C58A42] font-semibold' : 'text-white'
                   }`}
                 >
                   <span className="truncate">{ws.name}</span>
@@ -150,12 +161,27 @@ export const TopNav: React.FC = () => {
         </button>
 
         {/* User Profile */}
-        <div className="flex items-center space-x-2 pl-2 border-l border-white/10">
-          <img
-            src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}
-            alt={user?.fullName || 'User'}
-            className="w-7 h-7 rounded-full border border-[#C58A42]/50 object-cover"
-          />
+        <div className="relative group flex items-center space-x-2 pl-2 border-l border-white/10">
+          <button className="flex items-center" title={user?.fullName || 'Account'}>
+            <img
+              src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}
+              alt={user?.fullName || 'User'}
+              className="w-7 h-7 rounded-full border border-[#C58A42]/50 object-cover"
+            />
+          </button>
+          <div className="absolute top-full right-0 mt-1 w-52 bg-[#20242B] border border-white/10 rounded-xl shadow-xl py-1 hidden group-hover:block z-50">
+            <div className="px-3 py-2 border-b border-white/10">
+              <p className="text-xs font-semibold text-white truncate">{user?.fullName}</p>
+              <p className="text-[10px] text-[#9DA5B4] truncate">{user?.email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-3 py-2 text-xs text-white hover:bg-[#E65A5A]/20 hover:text-[#E65A5A] flex items-center space-x-2"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign out</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>

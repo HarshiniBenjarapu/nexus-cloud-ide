@@ -6,6 +6,7 @@ export interface IOrganization extends Document {
   logo?: string;
   ownerId: Types.ObjectId;
   plan: 'free' | 'pro';
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,11 +41,19 @@ const organizationSchema = new Schema<IOrganization>(
       enum: ['free', 'pro'],
       default: 'free',
     },
+    // Soft delete (SRS 6.21). Null means the organization is live.
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+organizationSchema.index({ ownerId: 1 });
+organizationSchema.index({ deletedAt: 1 });
 
 // Indexes are declared inline via unique:true and required:true on field definitions above
 

@@ -7,6 +7,7 @@ export interface IWorkspace extends Document {
   terminalEnabled: boolean;
   aiEnabled: boolean;
   createdBy: Types.ObjectId;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +43,11 @@ const workspaceSchema = new Schema<IWorkspace>(
       ref: 'User',
       required: true,
     },
+    // Soft delete (SRS 6.21). Null means the workspace is live.
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -50,5 +56,6 @@ const workspaceSchema = new Schema<IWorkspace>(
 
 workspaceSchema.index({ organizationId: 1 });
 workspaceSchema.index({ createdBy: 1 });
+workspaceSchema.index({ organizationId: 1, deletedAt: 1 });
 
 export const Workspace = model<IWorkspace>('Workspace', workspaceSchema);
