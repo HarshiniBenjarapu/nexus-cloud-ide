@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { RootState } from '../app/store';
@@ -11,26 +11,19 @@ import { Sidebar } from '../components/layout/Sidebar';
 import { MonacoEditorContainer } from '../components/editor/MonacoEditorContainer';
 import { BottomPanel } from '../components/panel/BottomPanel';
 import { AIPanel } from '../components/ai/AIPanel';
+import { StatusBar } from '../components/layout/StatusBar';
+import { QuickOpenDialog } from '../components/editor/QuickOpenDialog';
 import { Toast } from '../components/ui/Toast';
 import { AuthLoadingScreen } from '../components/ui/AuthLoadingScreen';
 import { AlertTriangle, ArrowLeft } from 'lucide-react';
 
-/**
- * The IDE shell for one project (SRS Module 7).
- *
- * `:projectId` in the URL is the source of truth for which project is open —
- * Redux holds the same id for the panels to read, but the URL is what survives
- * a reload. Visiting /ide with no id falls back to the last selection, and
- * otherwise sends the user to the dashboard to pick one.
- */
 export const IDEPage: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { activeProjectId } = useSelector((state: RootState) => state.project);
+  const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
 
-  // Mirror the URL into Redux. Switching projects clears the previous
-  // project's tabs, which the reducer already handles.
   useEffect(() => {
     if (routeProjectId && routeProjectId !== activeProjectId) {
       dispatch(setActiveProjectId(routeProjectId));
@@ -39,7 +32,6 @@ export const IDEPage: React.FC = () => {
 
   const { project, isLoading, isError, error } = useProject(routeProjectId);
 
-  // /ide with no id: reuse the last selection if there is one, else pick a project.
   if (!routeProjectId) {
     return activeProjectId ? (
       <Navigate to={`/ide/${activeProjectId}`} replace />
@@ -52,8 +44,6 @@ export const IDEPage: React.FC = () => {
     return <AuthLoadingScreen message="Opening your project…" />;
   }
 
-  // A deleted project, or one the user lost access to, must say so rather than
-  // render an empty IDE that looks broken.
   if (isError || !project) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#0F1115] text-center px-6 space-y-4">
@@ -91,6 +81,8 @@ export const IDEPage: React.FC = () => {
         </div>
         <AIPanel />
       </div>
+      <StatusBar onOpenQuickOpen={() => setIsQuickOpenOpen(true)} />
+      <QuickOpenDialog isOpen={isQuickOpenOpen} onClose={() => setIsQuickOpenOpen(false)} />
       <Toast />
     </div>
   );

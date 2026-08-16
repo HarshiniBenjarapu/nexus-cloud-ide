@@ -2,15 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../app/store';
 import { toggleBottomPanel, setActiveBottomTab } from '../../store/uiSlice';
-import { Terminal as TerminalIcon, AlertCircle, FileText, CheckCircle2, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
+import { Terminal as TerminalIcon, AlertCircle, FileText, CheckCircle2, ChevronDown, ChevronUp, Play, Plus } from 'lucide-react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { terminalService } from '../../services/terminal.service';
 
 export const BottomPanel: React.FC = () => {
   const dispatch = useDispatch();
   const { isBottomPanelOpen, activeBottomTab } = useSelector((state: RootState) => state.ui);
+  const { activeProjectId } = useSelector((state: RootState) => state.project);
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermInstance = useRef<XTerm | null>(null);
+  const [terminalSessions, setTerminalSessions] = useState<{ id: string; name: string }[]>([
+    { id: 'term-1', name: 'bash #1' },
+  ]);
+  const [activeTermId, setActiveTermId] = useState('term-1');
 
   useEffect(() => {
     if (isBottomPanelOpen && activeBottomTab === 'terminal' && terminalRef.current && !xtermInstance.current) {
@@ -28,24 +34,32 @@ export const BottomPanel: React.FC = () => {
       });
 
       term.open(terminalRef.current);
-      term.writeln('\x1b[38;2;197;138;66m=== Nexus Cloud IDE Shared Web Terminal v1.0 ===\x1b[0m');
-      term.writeln('Connected to containerized workspace bash environment.');
-      term.writeln('Type commands below (e.g. \x1b[32mnpm run dev\x1b[0m, \x1b[32mpython main.py\x1b[0m, \x1b[32mgit status\x1b[0m):\n');
+      term.writeln('\x1b[38;2;197;138;66m=== Nexus Cloud IDE Interactive Container Terminal v1.0 ===\x1b[0m');
+      term.writeln(`Project ID: \x1b[36m${activeProjectId || 'Workspace Root'}\x1b[0m`);
+      term.writeln('Available utilities: \x1b[32mls\x1b[0m, \x1b[32mpwd\x1b[0m, \x1b[32mnode\x1b[0m, \x1b[32mnpm\x1b[0m, \x1b[32mpython\x1b[0m, \x1b[32mgit\x1b[0m, \x1b[32mclear\x1b[0m\n');
       term.write('\x1b[38;2;77;141;255mnexus-workspace@cloud:\x1b[0m~/project$ ');
 
       let currentLine = '';
-      term.onData((e) => {
+      term.onData(async (e) => {
         if (e === '\r') {
           term.writeln('');
-          if (currentLine.trim() === 'clear') {
+          const cmd = currentLine.trim();
+          if (cmd === 'clear') {
             term.clear();
-          } else if (currentLine.trim() === 'npm run dev') {
-            term.writeln('\x1b[32m> nexus-dashboard-v2@1.0.0 dev\x1b[0m');
-            term.writeln('\x1b[32m> vite\x1b[0m\n');
-            term.writeln('  \x1b[1mVITE v5.4.2\x1b[0m  ready in \x1b[1m280\x1b[0m ms\n');
-            term.writeln('  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m   \x1b[36mhttp://localhost:5173/\x1b[0m');
-          } else if (currentLine.trim().length > 0) {
-            term.writeln(`Executed: ${currentLine}`);
+          } else if (cmd.length > 0) {
+            try {
+              const res = await terminalService.executeCommand({
+                command: cmd,
+                projectId: activeProjectId || undefined,
+              });
+
+              if (res.output) {
+                const formatted = res.output.replace(/\n/g, '\r\n');
+                term.writeln(formatted);
+              }
+            } catch (err: any) {
+              term.writeln(`\x1b[31mError: ${err.message || 'Failed to execute command'}\x1b[0m`);
+            }
           }
           currentLine = '';
           term.write('\x1b[38;2;77;141;255mnexus-workspace@cloud:\x1b[0m~/project$ ');
@@ -62,7 +76,13 @@ export const BottomPanel: React.FC = () => {
 
       xtermInstance.current = term;
     }
-  }, [isBottomPanelOpen, activeBottomTab]);
+  }, [isBottomPanelOpen, activeBottomTab, activeProjectId]);
+
+  const addTerminalTab = () => {
+    const newId = `term-${Date.now()}`;
+    setTerminalSessions((prev) => [...prev, { id: newId, name: `bash #${prev.length + 1}` }]);
+    setActiveTermId(newId);
+  };
 
   if (!isBottomPanelOpen) {
     return (
@@ -125,9 +145,16 @@ export const BottomPanel: React.FC = () => {
           </button>
         </div>
 
-        <button onClick={() => dispatch(toggleBottomPanel())} className="text-[#9DA5B4] hover:text-white p-1">
-          <ChevronDown className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center space-x-2">
+          {activeBottomTab === 'terminal' && (
+            <button onClick={addTerminalTab} className="p-1 text-[#9DA5B4] hover:text-white" title="New Terminal Session">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button onClick={() => dispatch(toggleBottomPanel())} className="text-[#9DA5B4] hover:text-white p-1">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Body Content */}
@@ -135,8 +162,8 @@ export const BottomPanel: React.FC = () => {
         {activeBottomTab === 'terminal' && <div ref={terminalRef} className="w-full h-full" />}
         {activeBottomTab === 'output' && (
           <div className="font-mono text-xs text-[#9DA5B4] p-2 space-y-1">
-            <p className="text-[#4CAF50]">[Nexus Output Engine] Runtime listening on port 5173.</p>
-            <p>Hot Module Replacement (HMR) connected.</p>
+            <p className="text-[#4CAF50]">[Nexus Container Runtime] Listening on http://localhost:5174.</p>
+            <p>WebSocket terminal channel connected.</p>
           </div>
         )}
         {activeBottomTab === 'problems' && (
@@ -148,7 +175,7 @@ export const BottomPanel: React.FC = () => {
         {activeBottomTab === 'logs' && (
           <div className="font-mono text-xs text-[#9DA5B4] p-2 space-y-1">
             <p>[Build Pipeline] Initialized Docker runtime container node:20-alpine.</p>
-            <p>[Build Pipeline] Bundling assets with Vite production plugin.</p>
+            <p>[Build Pipeline] Fast Refresh active across workspace modules.</p>
           </div>
         )}
       </div>

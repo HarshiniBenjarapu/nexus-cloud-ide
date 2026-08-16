@@ -9,6 +9,10 @@ import authRoutes from './routes/auth.routes';
 import organizationRoutes from './routes/organization.routes';
 import workspaceRoutes from './routes/workspace.routes';
 import projectRoutes from './routes/project.routes';
+import terminalRoutes from './routes/terminal.routes';
+import gitRoutes from './routes/git.routes';
+import databaseRoutes from './routes/database.routes';
+import aiRoutes from './routes/ai.routes';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -70,6 +74,10 @@ export const createApp = (): Application => {
   app.use('/api/organizations', organizationRoutes);
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/projects', projectRoutes);
+  app.use('/api/terminal', terminalRoutes);
+  app.use('/api/git', gitRoutes);
+  app.use('/api/database', databaseRoutes);
+  app.use('/api/ai', aiRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────
   app.use(notFound);

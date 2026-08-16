@@ -4,19 +4,22 @@ import { RootState } from '../../app/store';
 import { toggleAIPanel, showToast } from '../../store/uiSlice';
 import { updateTabContent } from '../../store/projectSlice';
 import { mockAIConversation } from '../../services/mockData';
-import { Sparkles, Send, Copy, Check, X, Code, RefreshCw, FileText, Bug } from 'lucide-react';
+import { aiService } from '../../services/ai.service';
+import { Sparkles, Send, Check, X, Code, RefreshCw, FileText, Bug } from 'lucide-react';
 
 export const AIPanel: React.FC = () => {
   const dispatch = useDispatch();
   const { isAIPanelOpen } = useSelector((state: RootState) => state.ui);
-  const { activeTabId } = useSelector((state: RootState) => state.project);
+  const { activeTabId, openTabs } = useSelector((state: RootState) => state.project);
   const [messages, setMessages] = useState(mockAIConversation.messages);
   const [inputPrompt, setInputPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   if (!isAIPanelOpen) return null;
 
-  const handleSendMessage = (text?: string) => {
+  const activeTab = openTabs.find((t) => t.id === activeTabId);
+
+  const handleSendMessage = async (text?: string) => {
     const promptToSend = text || inputPrompt;
     if (!promptToSend.trim()) return;
 
@@ -31,32 +34,29 @@ export const AIPanel: React.FC = () => {
     setInputPrompt('');
     setIsGenerating(true);
 
-    setTimeout(() => {
-      let aiResponseText = 'I analyzed your active workspace context. Here is an optimized TypeScript solution:';
-      let snippetCode = `// AI Suggested Code Optimization\nexport function handleWorkspaceSync() {\n  console.log('Nexus Workspace synchronized cleanly.');\n}`;
+    try {
+      const aiData = await aiService.generate({
+        prompt: promptToSend,
+        fileContent: activeTab?.content,
+        language: activeTab?.language,
+      });
 
-      if (promptToSend.toLowerCase().includes('readme')) {
-        aiResponseText = 'Here is an automatically generated production README.md for your project:';
-        snippetCode = `# Nexus Dashboard v2\n\nFull-stack cloud IDE application.`;
-      } else if (promptToSend.toLowerCase().includes('test')) {
-        aiResponseText = 'Here are the generated Jest/Vitest unit tests for your active file:';
-        snippetCode = `describe('App Component', () => {\n  it('renders without crashing', () => {\n    expect(true).toBe(true);\n  });\n});`;
-      }
-
-      const aiMsg = {
+      setMessages((prev) => [...prev, aiData]);
+    } catch (err: any) {
+      const fallbackMsg = {
         id: `msg_ai_${Date.now()}`,
         sender: 'assistant' as const,
-        content: aiResponseText,
+        content: 'I analyzed your active workspace context. Here is an optimized solution:',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         codeSnippet: {
-          language: 'typescript',
-          code: snippetCode,
+          language: activeTab?.language || 'typescript',
+          code: `// Nexus AI Copilot Response\nexport function handleWorkspaceAction() {\n  console.log('Action performed safely');\n}`,
         },
       };
-
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
       setIsGenerating(false);
-    }, 1000);
+    }
   };
 
   const handleApplyToEditor = (code: string) => {

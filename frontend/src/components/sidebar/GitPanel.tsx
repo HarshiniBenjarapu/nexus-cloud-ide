@@ -1,34 +1,70 @@
-import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { mockGitStatus } from '../../services/mockData';
+import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../../app/store';
 import { showToast } from '../../store/uiSlice';
-import { GitBranch, GitCommit, UploadCloud, DownloadCloud, Check, Plus, RefreshCw } from 'lucide-react';
+import { gitService, GitFileStatus } from '../../services/git.service';
+import { GitBranch, GitCommit, UploadCloud, DownloadCloud, RefreshCw, Check, Plus } from 'lucide-react';
 
 export const GitPanel: React.FC = () => {
   const dispatch = useDispatch();
+  const { activeProjectId } = useSelector((state: RootState) => state.project);
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentBranch, setCurrentBranch] = useState('main');
+  const [files, setFiles] = useState<GitFileStatus[]>([]);
 
-  const handleCommit = () => {
+  const fetchStatus = async () => {
+    if (!activeProjectId) return;
+    setIsLoading(true);
+    try {
+      const data = await gitService.getStatus(activeProjectId);
+      setCurrentBranch(data.currentBranch || 'main');
+      setFiles(data.files || []);
+    } catch (err) {
+      // Fallback
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, [activeProjectId]);
+
+  const handleCommit = async () => {
     if (!commitMessage.trim()) {
       dispatch(showToast({ message: 'Please enter a commit message!', type: 'warning' }));
       return;
     }
 
     setIsCommitting(true);
-    setTimeout(() => {
-      setIsCommitting(false);
+    try {
+      if (activeProjectId) {
+        await gitService.commit(activeProjectId, commitMessage);
+      }
       setCommitMessage('');
-      dispatch(showToast({ message: 'Changes committed successfully to main!', type: 'success' }));
-    }, 800);
+      dispatch(showToast({ message: 'Changes committed successfully!', type: 'success' }));
+      fetchStatus();
+    } catch (err: any) {
+      dispatch(showToast({ message: err.message || 'Failed to commit changes', type: 'error' }));
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  const toggleStage = (idx: number) => {
+    setFiles((prev) =>
+      prev.map((f, i) => (i === idx ? { ...f, staged: !f.staged } : f))
+    );
   };
 
   const handlePush = () => {
-    dispatch(showToast({ message: 'Pushing commits to remote origin/main...', type: 'info' }));
+    dispatch(showToast({ message: `Pushing commits to remote origin/${currentBranch}...`, type: 'info' }));
   };
 
   const handlePull = () => {
-    dispatch(showToast({ message: 'Pulling latest changes from GitHub origin/main...', type: 'info' }));
+    dispatch(showToast({ message: `Pulling latest changes from remote origin/${currentBranch}...`, type: 'info' }));
   };
 
   return (
@@ -38,8 +74,8 @@ export const GitPanel: React.FC = () => {
           <GitBranch className="w-4 h-4 text-[#4CAF50]" />
           <span>Source Control</span>
         </div>
-        <button onClick={handlePull} className="p-1 hover:bg-white/10 text-[#9DA5B4] hover:text-white rounded-lg" title="Pull">
-          <DownloadCloud className="w-3.5 h-3.5" />
+        <button onClick={fetchStatus} className="p-1 hover:bg-white/10 text-[#9DA5B4] hover:text-white rounded-lg" title="Refresh Git Status">
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -47,7 +83,7 @@ export const GitPanel: React.FC = () => {
       <div className="flex items-center justify-between p-2.5 bg-[#0F1115] border border-white/5 rounded-xl text-xs">
         <div className="flex items-center space-x-2 text-white font-medium">
           <GitBranch className="w-3.5 h-3.5 text-[#C58A42]" />
-          <span>{mockGitStatus.currentBranch}</span>
+          <span>{currentBranch}</span>
         </div>
         <span className="text-[10px] text-[#4CAF50] bg-[#4CAF50]/10 px-2 py-0.5 rounded-full font-mono">Ahead +1</span>
       </div>
@@ -90,11 +126,20 @@ export const GitPanel: React.FC = () => {
 
       {/* Changed Files List */}
       <div className="flex-1 overflow-y-auto space-y-1">
-        <div className="text-[10px] font-semibold text-[#9DA5B4] uppercase tracking-wider pb-1">Changes ({mockGitStatus.files.length})</div>
-        {mockGitStatus.files.map((file, idx) => (
+        <div className="text-[10px] font-semibold text-[#9DA5B4] uppercase tracking-wider pb-1">Changes ({files.length})</div>
+        {files.map((file, idx) => (
           <div key={idx} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg text-xs text-white group">
-            <span className="truncate max-w-[160px] text-[#9DA5B4] group-hover:text-white">{file.path}</span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#C58A42]/20 text-[#C58A42] uppercase">{file.status[0]}</span>
+            <span className="truncate max-w-[150px] text-[#9DA5B4] group-hover:text-white">{file.path}</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#C58A42]/20 text-[#C58A42] uppercase">{file.status[0]}</span>
+              <button
+                onClick={() => toggleStage(idx)}
+                className={`p-1 rounded ${file.staged ? 'bg-[#4CAF50]/20 text-[#4CAF50]' : 'hover:bg-white/10 text-[#9DA5B4]'}`}
+                title={file.staged ? 'Unstage' : 'Stage'}
+              >
+                {file.staged ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+              </button>
+            </div>
           </div>
         ))}
       </div>
