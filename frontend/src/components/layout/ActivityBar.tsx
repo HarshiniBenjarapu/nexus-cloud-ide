@@ -2,7 +2,7 @@ import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../app/store';
 import { setActiveSidebarModule, SidebarModule } from '../../store/uiSlice';
-import { FolderTree, GitBranch, Database, Sparkles, Terminal, Rocket, Settings, Search } from 'lucide-react';
+import { FolderTree, GitBranch, Database, Sparkles, Terminal, Rocket, Settings, Blocks } from 'lucide-react';
 
 interface ActivityItem {
   id: SidebarModule;
@@ -22,6 +22,7 @@ export const ActivityBar: React.FC = () => {
     { id: 'ai', label: 'AI Copilot Assistant', icon: <Sparkles className="w-5 h-5" /> },
     { id: 'terminal', label: 'Shared Web Terminal', icon: <Terminal className="w-5 h-5" /> },
     { id: 'deployments', label: 'One-Click Deployments', icon: <Rocket className="w-5 h-5" /> },
+    { id: 'extensions', label: 'Extensions Marketplace', icon: <Blocks className="w-5 h-5" /> },
   ];
 
   return (

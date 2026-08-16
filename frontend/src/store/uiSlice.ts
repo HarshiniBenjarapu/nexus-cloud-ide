@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type SidebarModule = 'explorer' | 'git' | 'database' | 'ai' | 'terminal' | 'deployments' | 'settings';
+export type SidebarModule = 'explorer' | 'git' | 'database' | 'ai' | 'terminal' | 'deployments' | 'extensions' | 'settings';
 
 interface UIState {
   activeSidebarModule: SidebarModule;
@@ -8,7 +8,7 @@ interface UIState {
   isBottomPanelOpen: boolean;
   activeBottomTab: 'terminal' | 'output' | 'problems' | 'logs';
   isAIPanelOpen: boolean;
-  activeTheme: 'obsidian' | 'forest';
+  activeTheme: 'obsidian' | 'forest' | 'cyberpunk' | 'solarized' | 'highcontrast';
   toast: {
     message: string;
     type: 'success' | 'error' | 'info' | 'warning';
@@ -63,7 +63,7 @@ export const uiSlice = createSlice({
         state.toast.visible = false;
       }
     },
-    setTheme: (state, action: PayloadAction<'obsidian' | 'forest'>) => {
+    setTheme: (state, action: PayloadAction<'obsidian' | 'forest' | 'cyberpunk' | 'solarized' | 'highcontrast'>) => {
       state.activeTheme = action.payload;
     },
   },

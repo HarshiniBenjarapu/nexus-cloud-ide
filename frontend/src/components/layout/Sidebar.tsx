@@ -5,6 +5,7 @@ import { FileExplorerPanel } from '../sidebar/FileExplorerPanel';
 import { GitPanel } from '../sidebar/GitPanel';
 import { DatabasePanel } from '../sidebar/DatabasePanel';
 import { DeploymentsPanel } from '../sidebar/DeploymentsPanel';
+import { ExtensionsPanel } from '../sidebar/ExtensionsPanel';
 import { SettingsPanel } from '../sidebar/SettingsPanel';
 
 export const Sidebar: React.FC = () => {
@@ -18,6 +19,7 @@ export const Sidebar: React.FC = () => {
       {activeSidebarModule === 'git' && <GitPanel />}
       {activeSidebarModule === 'database' && <DatabasePanel />}
       {activeSidebarModule === 'deployments' && <DeploymentsPanel />}
+      {activeSidebarModule === 'extensions' && <ExtensionsPanel />}
       {activeSidebarModule === 'settings' && <SettingsPanel />}
       {activeSidebarModule === 'ai' && (
         <div className="p-4 text-xs text-[#9DA5B4]">

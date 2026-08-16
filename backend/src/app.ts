@@ -15,6 +15,8 @@ import databaseRoutes from './routes/database.routes';
 import aiRoutes from './routes/ai.routes';
 import deploymentRoutes from './routes/deployment.routes';
 import collaborationRoutes from './routes/collaboration.routes';
+import extensionRoutes from './routes/extension.routes';
+import analyticsRoutes from './routes/analytics.routes';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -82,6 +84,8 @@ export const createApp = (): Application => {
   app.use('/api/ai', aiRoutes);
   app.use('/api/deployments', deploymentRoutes);
   app.use('/api/collaboration', collaborationRoutes);
+  app.use('/api/extensions', extensionRoutes);
+  app.use('/api/analytics', analyticsRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────
   app.use(notFound);
