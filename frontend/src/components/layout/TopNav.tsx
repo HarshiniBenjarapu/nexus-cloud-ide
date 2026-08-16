@@ -7,6 +7,7 @@ import { useOrganizations } from '../../hooks/useOrganizations';
 import { useWorkspaces } from '../../hooks/useWorkspaces';
 import { useProject } from '../../hooks/useProjects';
 import { useLogout } from '../../hooks/useAuth';
+import { CollaboratorsPresence } from './CollaboratorsPresence';
 import { Cloud, Play, Rocket, Share2, Sparkles, ChevronDown, GitBranch, Layers, LogOut } from 'lucide-react';
 
 export const TopNav: React.FC = () => {
@@ -122,6 +123,8 @@ export const TopNav: React.FC = () => {
 
       {/* Right Controls */}
       <div className="flex items-center space-x-2">
+        <CollaboratorsPresence />
+
         {/* Run Button */}
         <button
           onClick={handleRun}

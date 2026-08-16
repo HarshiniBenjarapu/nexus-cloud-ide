@@ -13,6 +13,8 @@ import terminalRoutes from './routes/terminal.routes';
 import gitRoutes from './routes/git.routes';
 import databaseRoutes from './routes/database.routes';
 import aiRoutes from './routes/ai.routes';
+import deploymentRoutes from './routes/deployment.routes';
+import collaborationRoutes from './routes/collaboration.routes';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -78,6 +80,8 @@ export const createApp = (): Application => {
   app.use('/api/git', gitRoutes);
   app.use('/api/database', databaseRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/deployments', deploymentRoutes);
+  app.use('/api/collaboration', collaborationRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────
   app.use(notFound);

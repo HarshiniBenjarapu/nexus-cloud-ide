@@ -11,11 +11,12 @@ import { Sidebar } from '../components/layout/Sidebar';
 import { MonacoEditorContainer } from '../components/editor/MonacoEditorContainer';
 import { BottomPanel } from '../components/panel/BottomPanel';
 import { AIPanel } from '../components/ai/AIPanel';
+import { LivePreviewPanel } from '../components/editor/LivePreviewPanel';
 import { StatusBar } from '../components/layout/StatusBar';
 import { QuickOpenDialog } from '../components/editor/QuickOpenDialog';
 import { Toast } from '../components/ui/Toast';
 import { AuthLoadingScreen } from '../components/ui/AuthLoadingScreen';
-import { AlertTriangle, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Eye } from 'lucide-react';
 
 export const IDEPage: React.FC = () => {
   const dispatch = useDispatch();
@@ -23,6 +24,7 @@ export const IDEPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { activeProjectId } = useSelector((state: RootState) => state.project);
   const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
   useEffect(() => {
     if (routeProjectId && routeProjectId !== activeProjectId) {
@@ -76,7 +78,30 @@ export const IDEPage: React.FC = () => {
         <ActivityBar />
         <Sidebar />
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-          <MonacoEditorContainer />
+          <div className="flex-1 flex overflow-hidden relative">
+            <div className="flex-1 h-full overflow-hidden">
+              <MonacoEditorContainer />
+            </div>
+
+            {/* Toggle Live Preview Pane */}
+            {showLivePreview && (
+              <div className="w-1/2 h-full">
+                <LivePreviewPanel onClose={() => setShowLivePreview(false)} />
+              </div>
+            )}
+
+            {/* Floating Live Preview Trigger Button */}
+            {!showLivePreview && (
+              <button
+                onClick={() => setShowLivePreview(true)}
+                className="absolute right-4 top-14 z-20 px-3 py-1.5 bg-[#C58A42] hover:bg-[#D69A4E] text-white font-medium rounded-xl text-xs flex items-center space-x-1.5 shadow-lg shadow-[#C58A42]/20 border border-white/10 transition-transform hover:scale-105"
+                title="Toggle Shared Live Web Preview"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Live Preview</span>
+              </button>
+            )}
+          </div>
           <BottomPanel />
         </div>
         <AIPanel />
