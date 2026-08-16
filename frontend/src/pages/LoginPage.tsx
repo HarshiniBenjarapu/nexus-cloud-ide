@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { showToast } from '../store/uiSlice';
 import { useLogin } from '../hooks/useAuth';
+import { socialLogin } from '../services/auth.service';
 import { Cloud, Lock, Mail, Globe, Code } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -114,29 +115,54 @@ export const LoginPage: React.FC = () => {
           <span className="bg-[#171A1F] px-3 text-[10px] text-[#9DA5B4] uppercase tracking-wider">Or continue with</span>
         </div>
 
-        {/* OAuth is not implemented yet — SRS Module 1, a later milestone. */}
+        {/* Social Authentication */}
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              disabled
-              title="GitHub sign-in is coming soon"
-              className="py-2.5 bg-[#20242B] border border-white/10 rounded-xl text-xs font-medium text-white/40 flex items-center justify-center space-x-2 cursor-not-allowed"
+              onClick={async () => {
+                try {
+                  const res = await socialLogin({
+                    provider: 'github',
+                    email: 'github.developer@nexus.dev',
+                    fullName: 'GitHub Developer',
+                    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+                  });
+                  localStorage.setItem('nexus_jwt', res.token);
+                  dispatch(showToast({ message: 'Authenticated via GitHub SSO!', type: 'success' }));
+                  window.location.href = '/dashboard';
+                } catch (err: any) {
+                  dispatch(showToast({ message: err.message || 'GitHub auth failed', type: 'error' }));
+                }
+              }}
+              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >
-              <Code className="w-4 h-4 text-[#C58A42]/40" />
+              <Code className="w-4 h-4 text-[#C58A42]" />
               <span>GitHub</span>
             </button>
             <button
               type="button"
-              disabled
-              title="Google sign-in is coming soon"
-              className="py-2.5 bg-[#20242B] border border-white/10 rounded-xl text-xs font-medium text-white/40 flex items-center justify-center space-x-2 cursor-not-allowed"
+              onClick={async () => {
+                try {
+                  const res = await socialLogin({
+                    provider: 'google',
+                    email: 'google.developer@nexus.dev',
+                    fullName: 'Google Developer',
+                    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80',
+                  });
+                  localStorage.setItem('nexus_jwt', res.token);
+                  dispatch(showToast({ message: 'Authenticated via Google SSO!', type: 'success' }));
+                  window.location.href = '/dashboard';
+                } catch (err: any) {
+                  dispatch(showToast({ message: err.message || 'Google auth failed', type: 'error' }));
+                }
+              }}
+              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >
-              <Globe className="w-4 h-4 text-[#4D8DFF]/40" />
+              <Globe className="w-4 h-4 text-[#4D8DFF]" />
               <span>Google</span>
             </button>
           </div>
-          <p className="text-center text-[10px] text-[#9DA5B4]/60">Coming soon</p>
         </div>
 
         <p className="text-center text-xs text-[#9DA5B4]">

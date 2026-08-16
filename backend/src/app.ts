@@ -17,6 +17,9 @@ import deploymentRoutes from './routes/deployment.routes';
 import collaborationRoutes from './routes/collaboration.routes';
 import extensionRoutes from './routes/extension.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import sandboxRoutes from './routes/sandbox.routes';
+import webhookRoutes from './routes/webhook.routes';
+import domainRoutes from './routes/domain.routes';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -86,6 +89,9 @@ export const createApp = (): Application => {
   app.use('/api/collaboration', collaborationRoutes);
   app.use('/api/extensions', extensionRoutes);
   app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/containers/sandbox', sandboxRoutes);
+  app.use('/api/deployments/webhook', webhookRoutes);
+  app.use('/api/domains', domainRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────
   app.use(notFound);

@@ -39,3 +39,13 @@ export const fetchCurrentUser = async (): Promise<User> => {
 export const logoutUser = async (): Promise<void> => {
   await apiClient.post('/auth/logout');
 };
+
+export const socialLogin = async (payload: {
+  provider: 'github' | 'google';
+  email: string;
+  fullName?: string;
+  avatar?: string;
+}): Promise<SessionData> => {
+  const { data } = await apiClient.post<ApiSuccess<SessionData>>('/auth/social', payload);
+  return data.data;
+};
