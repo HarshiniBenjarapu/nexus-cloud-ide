@@ -3,3 +3,9 @@ node_modules/
 dist/
 *.log
 .env
+
+# Development project file storage (SRS 5.8) — user project source lives here
+storage/
+
+# Local verification harnesses (not part of the deliverable)
+.verify/

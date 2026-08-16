@@ -54,10 +54,8 @@ export interface Workspace {
   updatedAt: string;
 }
 
-// ─── Mock-backed types ───────────────────────────────────────────────────────
-// Still served from services/mockData until their own milestones land.
+// ─── Projects & Files (Modules 4 & 6) ────────────────────────────────────────
 
-// Project Types
 export type SupportedTemplate =
   | 'HTML'
   | 'CSS'
@@ -72,11 +70,27 @@ export type SupportedTemplate =
   | 'C++'
   | 'Empty';
 
+/** Every template the backend accepts, in the order the picker shows them. */
+export const SUPPORTED_TEMPLATES: SupportedTemplate[] = [
+  'React',
+  'Next.js',
+  'React + Express',
+  'Express.js',
+  'Node.js',
+  'JavaScript',
+  'HTML',
+  'CSS',
+  'Python',
+  'Java',
+  'C++',
+  'Empty',
+];
+
 export interface Project {
-  id: string;
+  _id: string;
   workspaceId: string;
   name: string;
-  description?: string;
+  description: string;
   template: SupportedTemplate;
   language: string;
   visibility: 'public' | 'private';
@@ -84,34 +98,53 @@ export interface Project {
   deploymentEnabled: boolean;
   isFavorite: boolean;
   isArchived: boolean;
+  createdBy: string | Pick<User, 'id' | 'fullName' | 'username' | 'avatar'>;
   createdAt: string;
   updatedAt: string;
 }
 
-// File Explorer Node
+/**
+ * A node in the project file tree.
+ *
+ * `path` is the identity — it is project-relative, POSIX, and unique, so the UI
+ * keys off it rather than inventing client-side ids. Content is fetched per file
+ * on demand and is never part of the tree.
+ */
 export interface FileNode {
-  id: string;
-  projectId: string;
   name: string;
   path: string;
   type: 'file' | 'folder';
-  extension?: string;
-  content?: string;
   children?: FileNode[];
-  isOpen?: boolean;
-  isUnsaved?: boolean;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+  size: number;
+  updatedAt: string | null;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
 }
 
 // Editor Tab
 export interface EditorTab {
   id: string;
-  fileId: string;
+  /** Project this tab's file belongs to, so tabs survive project switches. */
+  projectId: string;
   filePath: string;
   fileName: string;
   language: string;
   content: string;
   isUnsaved: boolean;
 }
+
+// ─── Mock-backed types ───────────────────────────────────────────────────────
+// Still served from services/mockData until their own milestones land.
 
 // Git Integration Types
 export interface GitFileStatus {

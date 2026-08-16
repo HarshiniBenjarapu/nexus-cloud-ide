@@ -19,6 +19,9 @@ export const AppRoutes: React.FC = () => {
       {/* Authenticated application */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        {/* The project id lives in the URL so a reload or a shared link
+            reopens the same project (SRS Module 7). */}
+        <Route path="/ide/:projectId" element={<IDEPage />} />
         <Route path="/ide" element={<IDEPage />} />
       </Route>
 

@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.routes';
 import organizationRoutes from './routes/organization.routes';
 import workspaceRoutes from './routes/workspace.routes';
+import projectRoutes from './routes/project.routes';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -68,6 +69,7 @@ export const createApp = (): Application => {
   app.use('/api/auth', authRoutes);
   app.use('/api/organizations', organizationRoutes);
   app.use('/api/workspaces', workspaceRoutes);
+  app.use('/api/projects', projectRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────
   app.use(notFound);

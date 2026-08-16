@@ -22,4 +22,14 @@ export const queryKeys = {
   organization: (orgId: string) => ['organizations', orgId] as const,
   workspaces: (orgId: string) => ['organizations', orgId, 'workspaces'] as const,
   workspace: (workspaceId: string) => ['workspaces', workspaceId] as const,
+
+  // Modules 4 & 6. `projects` is the prefix every filtered list shares, so
+  // invalidating it refreshes the list under any search/filter combination.
+  projects: (workspaceId: string) => ['workspaces', workspaceId, 'projects'] as const,
+  projectList: (workspaceId: string, filters: Record<string, unknown>) =>
+    ['workspaces', workspaceId, 'projects', filters] as const,
+  project: (projectId: string) => ['projects', projectId] as const,
+  fileTree: (projectId: string) => ['projects', projectId, 'files'] as const,
+  fileContent: (projectId: string, path: string) =>
+    ['projects', projectId, 'files', 'content', path] as const,
 };

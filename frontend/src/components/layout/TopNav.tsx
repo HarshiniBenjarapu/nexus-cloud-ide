@@ -5,6 +5,7 @@ import { setActiveWorkspaceId, setActiveOrgId } from '../../store/workspaceSlice
 import { toggleAIPanel, showToast } from '../../store/uiSlice';
 import { useOrganizations } from '../../hooks/useOrganizations';
 import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { useProject } from '../../hooks/useProjects';
 import { useLogout } from '../../hooks/useAuth';
 import { Cloud, Play, Rocket, Share2, Sparkles, ChevronDown, GitBranch, Layers, LogOut } from 'lucide-react';
 
@@ -13,7 +14,8 @@ export const TopNav: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { organizations, activeOrg } = useOrganizations();
   const { workspaces, activeWorkspace } = useWorkspaces(activeOrg?._id);
-  const { activeProject } = useSelector((state: RootState) => state.project);
+  const { activeProjectId } = useSelector((state: RootState) => state.project);
+  const { project: activeProject } = useProject(activeProjectId);
   const { isAIPanelOpen } = useSelector((state: RootState) => state.ui);
 
   const handleRun = () => {

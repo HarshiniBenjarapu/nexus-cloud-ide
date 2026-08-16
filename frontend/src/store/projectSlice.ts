@@ -1,113 +1,198 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Project, FileNode, EditorTab } from '../types';
-import { mockProjects, mockFileTree } from '../services/mockData';
+import { EditorTab } from '../types';
 
+/**
+ * Project *selection* and editor buffer state.
+ *
+ * Per SRS 5.13 the project and file collections are server state and live in
+ * TanStack Query (hooks/useProjects, hooks/useFiles). Redux keeps only which
+ * project is selected and which files are open, so there is exactly one source
+ * of truth for each.
+ *
+ * A tab is identified by `projectId + filePath` — the same identity the API
+ * uses — so renames and project switches stay consistent without client ids.
+ */
 interface ProjectState {
-  projects: Project[];
-  activeProject: Project | null;
-  fileTree: FileNode[];
+  activeProjectId: string | null;
   openTabs: EditorTab[];
   activeTabId: string | null;
   isSplitView: boolean;
   splitTabId: string | null;
 }
 
-const initialTabs: EditorTab[] = [
-  {
-    id: 'tab_app_tsx',
-    fileId: 'node_app_tsx',
-    filePath: '/src/App.tsx',
-    fileName: 'App.tsx',
-    language: 'typescript',
-    content: mockFileTree[0]?.children?.[0]?.content || '',
-    isUnsaved: false,
-  },
-  {
-    id: 'tab_main_tsx',
-    fileId: 'node_main_tsx',
-    filePath: '/src/main.tsx',
-    fileName: 'main.tsx',
-    language: 'typescript',
-    content: mockFileTree[0]?.children?.[1]?.content || '',
-    isUnsaved: false,
-  },
-];
-
 const initialState: ProjectState = {
-  projects: mockProjects,
-  activeProject: mockProjects[0],
-  fileTree: mockFileTree,
-  openTabs: initialTabs,
-  activeTabId: 'tab_app_tsx',
+  activeProjectId: null,
+  openTabs: [],
+  activeTabId: null,
   isSplitView: false,
   splitTabId: null,
+};
+
+/** Stable tab id derived from the file's identity, not a timestamp. */
+export const tabIdFor = (projectId: string, filePath: string): string =>
+  `${projectId}:${filePath}`;
+
+const fileNameOf = (filePath: string): string =>
+  filePath.split('/').pop() || filePath;
+
+/** Keep activeTabId and splitTabId pointing at tabs that still exist. */
+const reconcileSelection = (state: ProjectState, closedId?: string): void => {
+  if (closedId && state.activeTabId === closedId) {
+    state.activeTabId = state.openTabs.length
+      ? state.openTabs[state.openTabs.length - 1].id
+      : null;
+  }
+  if (state.splitTabId && !state.openTabs.some((t) => t.id === state.splitTabId)) {
+    state.splitTabId = null;
+    state.isSplitView = false;
+  }
 };
 
 export const projectSlice = createSlice({
   name: 'project',
   initialState,
   reducers: {
-    setActiveProject: (state, action: PayloadAction<Project>) => {
-      state.activeProject = action.payload;
+    /** Switching projects closes the previous project's tabs. */
+    setActiveProjectId: (state, action: PayloadAction<string | null>) => {
+      if (state.activeProjectId !== action.payload) {
+        state.openTabs = [];
+        state.activeTabId = null;
+        state.isSplitView = false;
+        state.splitTabId = null;
+      }
+      state.activeProjectId = action.payload;
     },
+
     setActiveTab: (state, action: PayloadAction<string>) => {
       state.activeTabId = action.payload;
     },
-    openFileTab: (state, action: PayloadAction<{ fileId: string; filePath: string; fileName: string; content: string; language: string }>) => {
-      const existing = state.openTabs.find((t) => t.fileId === action.payload.fileId);
+
+    openFileTab: (
+      state,
+      action: PayloadAction<{
+        projectId: string;
+        filePath: string;
+        content: string;
+        language: string;
+      }>
+    ) => {
+      const { projectId, filePath, content, language } = action.payload;
+      const id = tabIdFor(projectId, filePath);
+      const existing = state.openTabs.find((t) => t.id === id);
+
       if (existing) {
+        // Never clobber a buffer the user has unsaved edits in
+        if (!existing.isUnsaved) {
+          existing.content = content;
+        }
         state.activeTabId = existing.id;
-      } else {
-        const newTab: EditorTab = {
-          id: `tab_${Date.now()}`,
-          fileId: action.payload.fileId,
-          filePath: action.payload.filePath,
-          fileName: action.payload.fileName,
-          language: action.payload.language,
-          content: action.payload.content,
-          isUnsaved: false,
-        };
-        state.openTabs.push(newTab);
-        state.activeTabId = newTab.id;
+        return;
       }
+
+      state.openTabs.push({
+        id,
+        projectId,
+        filePath,
+        fileName: fileNameOf(filePath),
+        language,
+        content,
+        isUnsaved: false,
+      });
+      state.activeTabId = id;
     },
+
     closeTab: (state, action: PayloadAction<string>) => {
       state.openTabs = state.openTabs.filter((t) => t.id !== action.payload);
-      if (state.activeTabId === action.payload) {
-        state.activeTabId = state.openTabs.length > 0 ? state.openTabs[state.openTabs.length - 1].id : null;
-      }
+      reconcileSelection(state, action.payload);
     },
-    updateTabContent: (state, action: PayloadAction<{ tabId: string; content: string }>) => {
+
+    updateTabContent: (
+      state,
+      action: PayloadAction<{ tabId: string; content: string }>
+    ) => {
       const tab = state.openTabs.find((t) => t.id === action.payload.tabId);
       if (tab) {
         tab.content = action.payload.content;
         tab.isUnsaved = true;
       }
     },
+
     markTabSaved: (state, action: PayloadAction<string>) => {
       const tab = state.openTabs.find((t) => t.id === action.payload);
       if (tab) {
         tab.isUnsaved = false;
       }
     },
+
+    /** A renamed file keeps its buffer; only its identity changes. */
+    renameTabPath: (
+      state,
+      action: PayloadAction<{ projectId: string; oldPath: string; newPath: string }>
+    ) => {
+      const { projectId, oldPath, newPath } = action.payload;
+      const oldId = tabIdFor(projectId, oldPath);
+
+      for (const tab of state.openTabs) {
+        // A folder rename moves every descendant tab with it
+        const isMatch = tab.id === oldId || tab.filePath.startsWith(`${oldPath}/`);
+        if (tab.projectId !== projectId || !isMatch) continue;
+
+        const nextPath =
+          tab.filePath === oldPath
+            ? newPath
+            : `${newPath}${tab.filePath.slice(oldPath.length)}`;
+
+        const wasActive = state.activeTabId === tab.id;
+        const wasSplit = state.splitTabId === tab.id;
+
+        tab.filePath = nextPath;
+        tab.fileName = fileNameOf(nextPath);
+        tab.id = tabIdFor(projectId, nextPath);
+
+        if (wasActive) state.activeTabId = tab.id;
+        if (wasSplit) state.splitTabId = tab.id;
+      }
+    },
+
+    /** Close tabs for a deleted path, including a folder's descendants. */
+    closeTabsUnderPath: (
+      state,
+      action: PayloadAction<{ projectId: string; path: string }>
+    ) => {
+      const { projectId, path } = action.payload;
+
+      state.openTabs = state.openTabs.filter(
+        (tab) =>
+          tab.projectId !== projectId ||
+          (tab.filePath !== path && !tab.filePath.startsWith(`${path}/`))
+      );
+
+      if (!state.openTabs.some((t) => t.id === state.activeTabId)) {
+        state.activeTabId = state.openTabs.length
+          ? state.openTabs[state.openTabs.length - 1].id
+          : null;
+      }
+      reconcileSelection(state);
+    },
+
     toggleSplitView: (state) => {
       state.isSplitView = !state.isSplitView;
-      if (state.isSplitView && state.openTabs.length > 1) {
-        state.splitTabId = state.openTabs.find((t) => t.id !== state.activeTabId)?.id || null;
-      } else {
-        state.splitTabId = null;
-      }
+      state.splitTabId = state.isSplitView
+        ? state.openTabs.find((t) => t.id !== state.activeTabId)?.id ?? null
+        : null;
     },
   },
 });
 
 export const {
-  setActiveProject,
+  setActiveProjectId,
   setActiveTab,
   openFileTab,
   closeTab,
   updateTabContent,
   markTabSaved,
+  renameTabPath,
+  closeTabsUnderPath,
   toggleSplitView,
 } = projectSlice.actions;
 
