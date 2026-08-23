@@ -123,6 +123,11 @@ export const buildTemplateFiles = (
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vite": "^8.2.0",
+    "@vitejs/plugin-react": "^6.0.0"
   }
 }
 `,
@@ -246,6 +251,11 @@ export const buildTemplateFiles = (
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vite": "^8.2.0",
+    "@vitejs/plugin-react": "^6.0.0"
   }
 }
 `,

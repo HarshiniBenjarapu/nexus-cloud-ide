@@ -33,7 +33,17 @@ export const createApp = (): Application => {
   // ─── CORS ─────────────────────────────────────────────────────────────────
   app.use(
     cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+          .split(',')
+          .map((item) => item.trim());
+
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -85,12 +95,12 @@ export const createApp = (): Application => {
   app.use('/api/git', gitRoutes);
   app.use('/api/database', databaseRoutes);
   app.use('/api/ai', aiRoutes);
-  app.use('/api/deployments', deploymentRoutes);
   app.use('/api/collaboration', collaborationRoutes);
   app.use('/api/extensions', extensionRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/containers/sandbox', sandboxRoutes);
   app.use('/api/deployments/webhook', webhookRoutes);
+  app.use('/api/deployments', deploymentRoutes);
   app.use('/api/domains', domainRoutes);
 
   // ─── 404 Handler ──────────────────────────────────────────────────────────

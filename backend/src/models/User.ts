@@ -8,7 +8,12 @@ export interface IUser extends Document {
   passwordHash: string;
   avatar?: string;
   authProvider: 'email' | 'google' | 'github';
+  githubId?: string;
   emailVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   isSuspended: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
   createdAt: Date;
@@ -56,9 +61,34 @@ const userSchema = new Schema<IUser>(
       enum: ['email', 'google', 'github'],
       default: 'email',
     },
+    githubId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
     emailVerified: {
       type: Boolean,
       default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    passwordResetToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+      select: false,
     },
     // NOTE: there is deliberately no global `role` field here. Authority is
     // organization-scoped and lives in organizationMembers (SRS 2.7 / 6.7).

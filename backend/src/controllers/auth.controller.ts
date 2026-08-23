@@ -1,8 +1,11 @@
+import axios from 'axios';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/User';
 import { Organization } from '../models/Organization';
 import { OrganizationMember } from '../models/OrganizationMember';
+import crypto from 'crypto';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.service';
 
 // ─── Helper: Sign a JWT ───────────────────────────────────────────────────────
 const signToken = (userId: string): string => {
@@ -52,12 +55,15 @@ export const register = async (
       return;
     }
 
-    // Create User
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
     const user = await User.create({
       fullName,
       username,
       email,
       passwordHash: password,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
     // Auto-create a personal organization for this user
@@ -75,7 +81,14 @@ export const register = async (
       role: 'Owner',
       invitedBy: user._id,
     });
+    const verificationUrl =
+      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
 
+    await sendVerificationEmail(
+      user.email,
+      user.fullName,
+      verificationUrl
+    );
     const token = signToken(String(user._id));
 
     res.status(201).json({
@@ -170,7 +183,82 @@ export const getMe = async (
     next(error);
   }
 };
+export const githubCallback = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { code } = req.query;
 
+    if (!code || typeof code !== 'string') {
+      res.status(400).json({ success: false, message: 'GitHub authorization code is required.' });
+      return;
+    }
+
+    const tokenResponse = await axios.post(
+      'https://github.com/login/oauth/access_token',
+      {
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      },
+      {
+        headers: { Accept: 'application/json' },
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    if (!accessToken) {
+      res.status(401).json({ success: false, message: 'GitHub token exchange failed.' });
+      return;
+    }
+
+    const githubResponse = await axios.get('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+    });
+
+    const githubUser = githubResponse.data;
+
+    let user = await User.findOne({ githubId: String(githubUser.id) });
+
+    if (!user && githubUser.email) {
+      user = await User.findOne({ email: githubUser.email });
+    }
+
+    if (!user) {
+      const username = `${githubUser.login}_${Math.random().toString(36).substring(2, 6)}`;
+
+      user = await User.create({
+        fullName: githubUser.name || githubUser.login,
+        username,
+        email: githubUser.email,
+        avatar: githubUser.avatar_url,
+        authProvider: 'github',
+        githubId: String(githubUser.id),
+        emailVerified: true,
+        passwordHash: `github_${String(githubUser.id)}_${Date.now()}`,
+      });
+    } else if (!user.githubId) {
+      user.githubId = String(githubUser.id);
+      user.authProvider = 'github';
+      user.emailVerified = true;
+      await user.save();
+    }
+
+    const token = signToken(String(user._id));
+
+    res.redirect(
+      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/oauth/callback?token=${encodeURIComponent(token)}`
+    );
+  } catch (error) {
+    next(error);
+  }
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/social  (GitHub / Google OAuth2 callback or SSO token exchange)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,4 +327,122 @@ export const logout = async (
     success: true,
     message: 'Logged out successfully. Please discard your client-side JWT token.',
   });
+};
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email }).select(
+      '+passwordResetToken +passwordResetExpires'
+    );
+
+    if (!user) {
+      res.status(200).json({
+        success: true,
+        message: 'If the email exists, a reset link has been sent.',
+      });
+      return;
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+
+    await user.save();
+
+    const resetUrl =
+      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+    await sendPasswordResetEmail(user.email, user.fullName, resetUrl);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    const user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordHash +passwordResetToken +passwordResetExpires');
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token.',
+      });
+      return;
+    }
+
+    user.passwordHash = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const verifyEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Verification token is required.',
+      });
+      return;
+    }
+
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: new Date() },
+    }).select('+emailVerificationToken +emailVerificationExpires');
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification link.',
+      });
+      return;
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
 };

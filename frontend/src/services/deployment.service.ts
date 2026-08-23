@@ -7,7 +7,9 @@ export interface DeploymentRecord {
   status: 'queued' | 'building' | 'deployed' | 'failed';
   liveUrl?: string;
   buildLogs: string[];
+  envVars?: Record<string, string>;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export const deploymentService = {
@@ -23,5 +25,24 @@ export const deploymentService = {
   getProjectDeployments: async (projectId: string): Promise<DeploymentRecord[]> => {
     const { data } = await apiClient.get<ApiSuccess<DeploymentRecord[]>>(`/deployments/project/${projectId}`);
     return data.data;
+  },
+
+  getDeploymentDetails: async (id: string): Promise<DeploymentRecord> => {
+    const { data } = await apiClient.get<ApiSuccess<DeploymentRecord>>(`/deployments/${id}`);
+    return data.data;
+  },
+
+  syncStatus: async (id: string): Promise<DeploymentRecord> => {
+    const { data } = await apiClient.get<ApiSuccess<DeploymentRecord>>(`/deployments/${id}/sync`);
+    return data.data;
+  },
+
+  redeploy: async (id: string): Promise<DeploymentRecord> => {
+    const { data } = await apiClient.post<ApiSuccess<DeploymentRecord>>(`/deployments/${id}/redeploy`);
+    return data.data;
+  },
+
+  deleteDeployment: async (id: string): Promise<void> => {
+    await apiClient.delete(`/deployments/${id}`);
   },
 };

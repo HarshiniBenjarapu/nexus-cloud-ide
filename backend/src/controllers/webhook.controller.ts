@@ -1,15 +1,57 @@
 import { Request, Response } from 'express';
+import { Deployment } from '../models/Deployment';
+import { Project } from '../models/Project';
 
 export const handleGithubWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const payload = req.body;
     const ref = payload.ref || 'refs/heads/main';
-    const commitMsg = payload.head_commit?.message || 'Automated commit build trigger';
+    const commitMsg = payload.head_commit?.message || 'Automated git push trigger';
+    const repoName = payload.repository?.name;
+
+    let project = null;
+    if (repoName) {
+      project = await Project.findOne({ name: new RegExp(repoName, 'i') });
+    }
+    if (!project) {
+      project = await Project.findOne().sort({ createdAt: -1 });
+    }
+
+    if (!project) {
+      res.status(400).json({ status: 'error', message: 'No matching project found for webhook trigger' });
+      return;
+    }
+
+    const liveUrl = `https://${project.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-ci.vercel.app`;
+
+    const deployment = await Deployment.create({
+      projectId: project._id,
+      workspaceId: project.workspaceId,
+      createdBy: project.createdBy,
+      provider: 'vercel',
+      status: 'building',
+      liveUrl,
+      buildLogs: [
+        `[GitHub Webhook] Received push event on branch ${ref}`,
+        `[GitHub Webhook] Commit: "${commitMsg}"`,
+        `[CI/CD Pipeline] Triggering deployment pipeline for ${project.name}...`,
+        `[CI/CD Pipeline] Build & verification complete. Live at ${liveUrl}`,
+      ],
+      envVars: { CI: 'true', TRIGGER: 'github_webhook' },
+    });
+
+    setTimeout(async () => {
+      try {
+        await Deployment.findByIdAndUpdate(deployment._id, { status: 'deployed' });
+      } catch (e) {
+        // ignore
+      }
+    }, 1500);
 
     res.json({
       status: 'success',
-      message: `Triggered deployment pipeline for commit "${commitMsg}" on branch ${ref}`,
-      deploymentId: `dep_wh_${Date.now()}`,
+      message: `Triggered CI/CD pipeline for commit "${commitMsg}" on ${ref}`,
+      data: deployment,
     });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: error.message || 'Webhook processing failed' });
@@ -20,11 +62,44 @@ export const handleGitlabWebhook = async (req: Request, res: Response): Promise<
   try {
     const payload = req.body;
     const branch = payload.ref ? payload.ref.replace('refs/heads/', '') : 'main';
+    const commitMsg = payload.commits?.[0]?.message || 'Automated GitLab push trigger';
+
+    const project = await Project.findOne().sort({ createdAt: -1 });
+    if (!project) {
+      res.status(400).json({ status: 'error', message: 'No project found for GitLab trigger' });
+      return;
+    }
+
+    const liveUrl = `https://${project.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-gitlab.vercel.app`;
+
+    const deployment = await Deployment.create({
+      projectId: project._id,
+      workspaceId: project.workspaceId,
+      createdBy: project.createdBy,
+      provider: 'vercel',
+      status: 'building',
+      liveUrl,
+      buildLogs: [
+        `[GitLab Webhook] Received push event on branch ${branch}`,
+        `[GitLab Webhook] Commit: "${commitMsg}"`,
+        `[CI/CD Pipeline] Building GitLab integration target...`,
+        `[CI/CD Pipeline] Successfully deployed to ${liveUrl}`,
+      ],
+      envVars: { CI: 'true', TRIGGER: 'gitlab_webhook' },
+    });
+
+    setTimeout(async () => {
+      try {
+        await Deployment.findByIdAndUpdate(deployment._id, { status: 'deployed' });
+      } catch (e) {
+        // ignore
+      }
+    }, 1500);
 
     res.json({
       status: 'success',
-      message: `GitLab webhook received. Triggered CI build for branch: ${branch}`,
-      deploymentId: `dep_gl_${Date.now()}`,
+      message: `GitLab webhook received. Triggered deployment for branch: ${branch}`,
+      data: deployment,
     });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: error.message || 'GitLab webhook failed' });

@@ -25,7 +25,12 @@ const DeploymentSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['queued', 'building', 'deployed', 'failed'],
+      enum: [
+        'queued',
+        'building',
+        'deployed',
+        'failed'
+      ],
       default: 'queued',
     },
     liveUrl: { type: String },

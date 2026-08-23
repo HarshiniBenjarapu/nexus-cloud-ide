@@ -1,47 +1,82 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
+import docker from '../services/docker.service';
 
-export const createSandboxContainer = async (req: AuthRequest, res: Response): Promise<void> => {
+export const createSandboxContainer = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
-    const { workspaceId, image = 'node:20-alpine', memoryLimitMb = 512 } = req.body;
+    const {
+      workspaceId,
+      image = 'node:22-alpine',
+      memoryLimitMb = 512,
+    } = req.body;
 
-    const containerId = `cnt_${Math.random().toString(36).substring(2, 9)}`;
+    const container = await docker.createContainer({
+      Image: image,
+      Tty: false,
+      Cmd: ['tail', '-f', '/dev/null'],
+      HostConfig: {
+        Memory: memoryLimitMb * 1024 * 1024,
+        NanoCpus: 500_000_000,
+      },
+      Labels: {
+        'nexus.workspaceId': workspaceId || '',
+        'nexus.sandbox': 'true',
+      },
+    });
+
+    await container.start();
+
+    const info = await container.inspect();
 
     res.status(201).json({
       status: 'success',
       data: {
-        containerId,
+        containerId: info.Id,
         workspaceId,
         image,
-        status: 'running',
+        status: info.State.Status,
         memoryLimitMb,
-        cpuQuotaShares: 1024,
-        allocatedIp: '172.18.0.14',
+        cpuLimit: '0.5 CPU',
         createdAt: new Date().toISOString(),
       },
     });
   } catch (error: any) {
-    res.status(500).json({ status: 'error', message: error.message || 'Failed to initialize container sandbox' });
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Failed to create Docker sandbox',
+    });
   }
 };
 
-export const getSandboxContainerStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getSandboxContainerStatus = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
+
+    const container = docker.getContainer(id);
+    const info = await container.inspect();
 
     res.json({
       status: 'success',
       data: {
-        containerId: id,
-        status: 'running',
-        uptimeSeconds: 1420,
-        cpuUsagePct: 8.4,
-        memoryUsageMb: 128,
-        networkRxKb: 450,
-        networkTxKb: 120,
+        containerId: info.Id,
+        status: info.State.Status,
+        running: info.State.Running,
+        startedAt: info.State.StartedAt,
+        finishedAt: info.State.FinishedAt,
+        memoryLimitBytes: info.HostConfig.Memory,
+        cpuLimitNanoCpus: info.HostConfig.NanoCpus,
       },
     });
   } catch (error: any) {
-    res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch sandbox status' });
+    res.status(404).json({
+      status: 'error',
+      message: error.message || 'Sandbox container not found',
+    });
   }
 };

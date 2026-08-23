@@ -47,3 +47,18 @@ export const loginSchema = Joi.object({
     'string.empty': 'Password is required.',
   }),
 });
+export const forgotPasswordSchema = Joi.object({
+  email: Joi.string().trim().lowercase().email().required().messages({
+    'string.empty': 'Email address is required.',
+    'string.email': 'Please provide a valid email address.',
+  }),
+});
+
+export const resetPasswordSchema = Joi.object({
+  token: Joi.string().required(),
+  password: Joi.string().min(MIN_PASSWORD_LENGTH).max(128).required().messages({
+    'string.empty': 'Password is required.',
+    'string.min': `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`,
+    'string.max': 'Password cannot exceed 128 characters.',
+  }),
+});

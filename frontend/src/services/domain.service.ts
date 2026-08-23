@@ -1,7 +1,8 @@
 import { apiClient } from '../lib/apiClient';
 
 export interface CustomDomain {
-  id: string;
+  _id?: string;
+  id?: string;
   projectId: string;
   domainName: string;
   cnameTarget: string;
@@ -16,8 +17,17 @@ export const domainService = {
     return data.data;
   },
 
+  getProjectDomains: async (projectId: string): Promise<CustomDomain[]> => {
+    const { data } = await apiClient.get(`/domains/project/${projectId}`);
+    return data.data;
+  },
+
   verifyDomain: async (id: string): Promise<CustomDomain> => {
     const { data } = await apiClient.post(`/domains/${id}/verify`);
     return data.data;
+  },
+
+  deleteDomain: async (id: string): Promise<void> => {
+    await apiClient.delete(`/domains/${id}`);
   },
 };

@@ -27,7 +27,10 @@ export const AIPanel: React.FC = () => {
       id: `msg_${Date.now()}`,
       sender: 'user' as const,
       content: promptToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -43,17 +46,18 @@ export const AIPanel: React.FC = () => {
 
       setMessages((prev) => [...prev, aiData]);
     } catch (err: any) {
-      const fallbackMsg = {
-        id: `msg_ai_${Date.now()}`,
-        sender: 'assistant' as const,
-        content: 'I analyzed your active workspace context. Here is an optimized solution:',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        codeSnippet: {
-          language: activeTab?.language || 'typescript',
-          code: `// Nexus AI Copilot Response\nexport function handleWorkspaceAction() {\n  console.log('Action performed safely');\n}`,
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err_${Date.now()}`,
+          sender: 'assistant' as const,
+          content: err.message || 'AI request failed',
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
         },
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      ]);
     } finally {
       setIsGenerating(false);
     }
@@ -115,9 +119,8 @@ export const AIPanel: React.FC = () => {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`p-3 rounded-2xl text-xs space-y-2 ${
-              msg.sender === 'user' ? 'bg-[#C58A42]/15 border border-[#C58A42]/30 text-white ml-6' : 'bg-[#0F1115] border border-white/5 text-white mr-4'
-            }`}
+            className={`p-3 rounded-2xl text-xs space-y-2 ${msg.sender === 'user' ? 'bg-[#C58A42]/15 border border-[#C58A42]/30 text-white ml-6' : 'bg-[#0F1115] border border-white/5 text-white mr-4'
+              }`}
           >
             <div className="flex items-center justify-between text-[10px] text-[#9DA5B4]">
               <span className="font-semibold">{msg.sender === 'user' ? 'You' : 'Nexus AI'}</span>
