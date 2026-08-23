@@ -15,17 +15,7 @@ import { OrgRole } from '../types/roles';
  * requested resource and reject non-members before any controller runs.
  */
 
-export interface AuthorizedRequest<
-  P = any,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = any
-> extends AuthRequest<P, ResBody, ReqBody, ReqQuery> {
-  organization?: IOrganization;
-  membership?: IOrganizationMember;
-  workspace?: IWorkspace;
-  project?: IProject;
-}
+export type AuthorizedRequest = AuthRequest;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Resolve membership for routes carrying :orgId

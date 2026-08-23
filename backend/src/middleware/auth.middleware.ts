@@ -1,15 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
+import { IOrganization } from '../models/Organization';
+import { IOrganizationMember } from '../models/OrganizationMember';
+import { IWorkspace } from '../models/Workspace';
+import { IProject } from '../models/Project';
 
-export interface AuthRequest<
-  P = any,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = any
-> extends Request<P, ResBody, ReqBody, ReqQuery> {
-  user?: any;
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+      organization?: IOrganization;
+      membership?: IOrganizationMember;
+      workspace?: IWorkspace;
+      project?: IProject;
+    }
+  }
 }
+
+export type AuthRequest = Request;
 
 // ──────────────────────────────────────────────────
 // Protect: Verify JWT and attach user to request
@@ -60,11 +69,3 @@ export const protect = async (
     res.status(401).json({ success: false, message: 'Invalid authentication token.' });
   }
 };
-
-// ──────────────────────────────────────────────────
-// Role-based access control lives in authorize.middleware.ts.
-//
-// The previous `restrictTo` here read the global User.role field, which has
-// been removed: permissions are organization-scoped (SRS 2.7 / 6.7) and are
-// resolved from the organizationMembers collection.
-// ──────────────────────────────────────────────────
