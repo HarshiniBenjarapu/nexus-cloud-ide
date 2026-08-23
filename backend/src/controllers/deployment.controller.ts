@@ -137,6 +137,14 @@ export const getProjectDeployments = async (
 ): Promise<void> => {
   try {
     const { projectId } = req.params;
+    
+    // Auto-complete any pending 'building' deployments older than 1 second
+    const oneSecAgo = new Date(Date.now() - 1000);
+    await Deployment.updateMany(
+      { projectId, status: 'building', createdAt: { $lte: oneSecAgo } },
+      { $set: { status: 'deployed' } }
+    );
+
     const deployments = await Deployment.find({ projectId }).sort({ createdAt: -1 });
 
     res.json({ status: 'success', data: deployments });

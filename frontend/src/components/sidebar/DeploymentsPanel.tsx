@@ -70,6 +70,15 @@ export const DeploymentsPanel: React.FC = () => {
   useEffect(() => {
     fetchDeployments();
     fetchDomains();
+
+    // Auto-poll status every 2 seconds if any deployment is building
+    const interval = setInterval(() => {
+      if (activeProjectId) {
+        fetchDeployments();
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
   }, [activeProjectId]);
 
   // Task 1 & Trigger Deploy
@@ -95,6 +104,7 @@ export const DeploymentsPanel: React.FC = () => {
       });
 
       await fetchDeployments();
+      setTimeout(fetchDeployments, 1600);
       dispatch(showToast({ message: `Deployment created on ${provider.toUpperCase()}!`, type: 'success' }));
     } catch (err: any) {
       dispatch(showToast({ message: err.message || 'Deployment failed', type: 'error' }));
@@ -121,8 +131,9 @@ export const DeploymentsPanel: React.FC = () => {
   const handleRedeploy = async (id: string) => {
     try {
       dispatch(showToast({ message: 'Re-deploying build with preserved env vars...', type: 'info' }));
-      const newRecord = await deploymentService.redeploy(id);
+      await deploymentService.redeploy(id);
       await fetchDeployments();
+      setTimeout(fetchDeployments, 1600);
       dispatch(showToast({ message: 'Redeployment triggered successfully!', type: 'success' }));
     } catch (err) {
       dispatch(showToast({ message: 'Redeploy failed', type: 'error' }));
