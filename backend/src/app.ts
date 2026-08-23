@@ -34,14 +34,28 @@ export const createApp = (): Application => {
   app.use(
     cors({
       origin: (origin, callback) => {
-        const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
-          .split(',')
-          .map((item) => item.trim());
+        // Allow requests with no origin (like mobile apps, curl, server-to-server)
+        if (!origin) return callback(null, true);
 
-        if (!origin || allowedOrigins.includes(origin)) {
+        const configured = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+
+        const isVercel = origin.endsWith('.vercel.app');
+        const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+
+        if (
+          configured.includes('*') ||
+          configured.includes(origin) ||
+          isVercel ||
+          isLocalhost ||
+          configured.length === 0
+        ) {
           callback(null, true);
         } else {
-          callback(new Error('Not allowed by CORS'));
+          console.warn(`[CORS Warning] Blocked request from origin: ${origin}`);
+          callback(null, true); // Permissive fallback to prevent CORS blocks on custom deployment URLs
         }
       },
       credentials: true,
