@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { gemini } from '../services/gemini';
+import { getGeminiClient } from '../services/gemini';
 
 export const generateAIResponse = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -10,13 +10,8 @@ export const generateAIResponse = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      res.status(503).json({
-        status: 'error',
-        message: 'AI service is not configured. Please add GEMINI_API_KEY to your environment.',
-      });
-      return;
-    }
+    // getGeminiClient() throws if GEMINI_API_KEY is not set
+    const gemini = getGeminiClient();
 
     const fullPrompt = `You are the AI assistant inside Nexus Cloud IDE — a professional cloud-based integrated development environment.
 
@@ -52,15 +47,25 @@ Respond concisely and helpfully. When providing code, wrap it in appropriate mar
   } catch (error: any) {
     console.error('[AI Error]:', error?.message || error);
 
-    // Provide a friendly fallback message instead of crashing
-    const isKeyError =
-      error?.message?.includes('API key') || error?.message?.includes('INVALID_ARGUMENT');
+    const msg: string = error?.message || '';
+    const isMissingKey = msg.includes('GEMINI_API_KEY is not set');
+    const isInvalidKey = msg.includes('API key') || msg.includes('INVALID_ARGUMENT');
 
-    res.status(isKeyError ? 503 : 500).json({
-      status: 'error',
-      message: isKeyError
-        ? 'AI service is unavailable: Invalid or missing GEMINI_API_KEY.'
-        : error.message || 'AI generation failed. Please try again.',
-    });
+    if (isMissingKey) {
+      res.status(503).json({
+        status: 'error',
+        message: 'AI service is not configured: GEMINI_API_KEY is missing from environment variables.',
+      });
+    } else if (isInvalidKey) {
+      res.status(503).json({
+        status: 'error',
+        message: 'AI service failed: The GEMINI_API_KEY is invalid. Please check your key at aistudio.google.com.',
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        message: msg || 'AI generation failed. Please try again.',
+      });
+    }
   }
 };
