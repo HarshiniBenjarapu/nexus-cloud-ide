@@ -10,29 +10,30 @@ const sendEmail = async (
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY is not configured.');
+  if (!apiKey || !from) {
+    console.warn(`[Email Service] RESEND_API_KEY or EMAIL_FROM not configured. Skipping email to ${to}. Subject: ${subject}`);
+    return;
   }
 
-  if (!from) {
-    throw new Error('EMAIL_FROM is not configured.');
-  }
-
-  await axios.post(
-    RESEND_API_URL,
-    {
-      from,
-      to: [to],
-      subject,
-      html,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+  try {
+    await axios.post(
+      RESEND_API_URL,
+      {
+        from,
+        to: [to],
+        subject,
+        html,
       },
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  } catch (error: any) {
+    console.warn(`[Email Service] Failed to send email to ${to}: ${error.response?.data?.message || error.message}`);
+  }
 };
 
 export const sendVerificationEmail = async (
