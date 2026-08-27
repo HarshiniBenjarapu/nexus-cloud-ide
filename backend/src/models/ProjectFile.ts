@@ -18,6 +18,7 @@ export interface IProjectFile extends Document {
   type: 'file' | 'folder';
   extension: string;
   size: number;
+  content?: string;
   createdBy: Types.ObjectId;
   lastModifiedBy: Types.ObjectId | null;
   createdAt: Date;
@@ -63,6 +64,10 @@ const projectFileSchema = new Schema<IProjectFile>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    content: {
+      type: String,
+      default: '',
     },
     createdBy: {
       type: Schema.Types.ObjectId,

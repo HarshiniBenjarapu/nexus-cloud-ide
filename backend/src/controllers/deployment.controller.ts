@@ -3,7 +3,7 @@ import axios from 'axios';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { Deployment } from '../models/Deployment';
 import { Project } from '../models/Project';
-import { listFiles, readFileContent } from '../services/storage.service';
+import { listFiles, readFileContent, ensureProjectStorage } from '../services/storage.service';
 
 const VERCEL_API = 'https://api.vercel.com';
 
@@ -31,6 +31,7 @@ export const createDeployment = async (
     // If Vercel token is provided, perform live Vercel API call
     if (token && provider === 'vercel') {
       try {
+        await ensureProjectStorage(project.workspaceId.toString(), projectId.toString(), project.template, project.name);
         const files: { file: string; data: string }[] = [];
         const tree = await listFiles(project.workspaceId.toString(), projectId.toString());
 

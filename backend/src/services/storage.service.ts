@@ -3,6 +3,7 @@ import path from 'path';
 import { buildTemplateFiles } from '../templates';
 import { ProjectTemplate } from '../types/templates';
 import { resolveWithinRoot, normalizeRelativePath } from '../utils/pathGuard';
+import { ProjectFile } from '../models/ProjectFile';
 
 /**
  * Development file storage (SRS 5.8).
@@ -28,22 +29,105 @@ export interface FileNode {
 export const getProjectRoot = (workspaceId: string, projectId: string): string =>
   path.join(STORAGE_ROOT, String(workspaceId), String(projectId));
 
-// ─── Scaffolding ─────────────────────────────────────────────────────────────
+// ─── Scaffolding & Self-Healing ──────────────────────────────────────────────
 
-/** Create a project directory and write its template scaffold. */
+/** Create a project directory, write template files to disk, and persist them in MongoDB. */
 export const createProjectStorage = async (
   workspaceId: string,
   projectId: string,
   template: ProjectTemplate,
-  projectName: string
+  projectName: string,
+  userId?: any
 ): Promise<void> => {
   const root = getProjectRoot(workspaceId, projectId);
   await fs.mkdir(root, { recursive: true });
 
-  for (const file of buildTemplateFiles(template, projectName)) {
+  const templateFiles = buildTemplateFiles(template, projectName);
+  for (const file of templateFiles) {
     const target = resolveWithinRoot(root, file.path);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, file.content, 'utf8');
+
+    if (userId) {
+      const parentFolder = path.posix.dirname(file.path) === '.' ? '' : path.posix.dirname(file.path);
+      const name = path.posix.basename(file.path);
+      const extension = path.posix.extname(file.path).replace(/^\./, '');
+      await ProjectFile.findOneAndUpdate(
+        { projectId, path: file.path },
+        {
+          $set: {
+            name,
+            parentFolder,
+            type: 'file',
+            extension,
+            size: Buffer.byteLength(file.content, 'utf8'),
+            content: file.content,
+            lastModifiedBy: userId,
+          },
+          $setOnInsert: {
+            projectId,
+            path: file.path,
+            createdBy: userId,
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).catch(() => undefined);
+    }
+  }
+};
+
+/**
+ * Ensures the project files exist on the local disk.
+ * In cloud container deployments (Render, Docker, etc.) where container filesystems
+ * are ephemeral/restarted, this restores files from MongoDB ProjectFile collection
+ * or scaffolds them from template if missing.
+ */
+export const ensureProjectStorage = async (
+  workspaceId: string,
+  projectId: string,
+  template?: ProjectTemplate,
+  projectName?: string,
+  userId?: any
+): Promise<void> => {
+  const root = getProjectRoot(workspaceId, projectId);
+  let hasFiles = false;
+
+  try {
+    const entries = await fs.readdir(root);
+    if (entries.length > 0) {
+      hasFiles = true;
+    }
+  } catch {
+    hasFiles = false;
+  }
+
+  if (!hasFiles) {
+    await fs.mkdir(root, { recursive: true });
+
+    // 1. Try to restore files from MongoDB ProjectFile collection
+    const dbFiles = await ProjectFile.find({ projectId }).lean();
+    if (dbFiles.length > 0) {
+      for (const f of dbFiles) {
+        try {
+          if (f.type === 'file') {
+            const target = resolveWithinRoot(root, f.path);
+            await fs.mkdir(path.dirname(target), { recursive: true });
+            await fs.writeFile(target, f.content ?? '', 'utf8');
+          } else if (f.type === 'folder') {
+            const target = resolveWithinRoot(root, f.path);
+            await fs.mkdir(target, { recursive: true });
+          }
+        } catch (err) {
+          console.error(`[ensureProjectStorage] Error restoring ${f.path}:`, err);
+        }
+      }
+      return;
+    }
+
+    // 2. If no MongoDB records exist either, re-scaffold from template
+    if (template && projectName) {
+      await createProjectStorage(workspaceId, projectId, template, projectName, userId);
+    }
   }
 };
 

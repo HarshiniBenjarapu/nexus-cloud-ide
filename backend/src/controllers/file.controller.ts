@@ -33,24 +33,31 @@ const joinPath = (parent: string, name: string): string =>
 const syncMetadata = async (
   req: AuthorizedRequest,
   relativePath: string,
-  type: 'file' | 'folder'
+  type: 'file' | 'folder',
+  content?: string
 ): Promise<void> => {
   const { workspaceId, projectId } = scope(req);
   const stat = await storage.statPath(workspaceId, projectId, relativePath);
+
+  const updateFields: any = {
+    name: path.posix.basename(relativePath),
+    parentFolder: parentOf(relativePath),
+    type,
+    extension:
+      type === 'file' ? path.posix.extname(relativePath).replace(/^\./, '') : '',
+    size: stat?.size ?? 0,
+    lastModifiedBy: req.user._id,
+  };
+
+  if (content !== undefined) {
+    updateFields.content = content;
+  }
 
   await ProjectFile.findOneAndUpdate(
     { projectId: req.project!._id, path: relativePath },
     {
       // $set and $setOnInsert must not be mixed with plain fields in one update
-      $set: {
-        name: path.posix.basename(relativePath),
-        parentFolder: parentOf(relativePath),
-        type,
-        extension:
-          type === 'file' ? path.posix.extname(relativePath).replace(/^\./, '') : '',
-        size: stat?.size ?? 0,
-        lastModifiedBy: req.user._id,
-      },
+      $set: updateFields,
       $setOnInsert: {
         projectId: req.project!._id,
         path: relativePath,
@@ -122,6 +129,13 @@ export const getFileTree = async (
 ): Promise<void> => {
   await handle(res, next, async () => {
     const { workspaceId, projectId } = scope(req);
+    await storage.ensureProjectStorage(
+      workspaceId,
+      projectId,
+      req.project!.template,
+      req.project!.name,
+      req.user._id
+    );
     const tree: FileNodeDTO[] = await storage.listFiles(workspaceId, projectId);
 
     res.status(200).json({
@@ -150,7 +164,24 @@ export const getFileContent = async (
       return;
     }
 
-    const stat = await storage.statPath(workspaceId, projectId, relativePath);
+    await storage.ensureProjectStorage(
+      workspaceId,
+      projectId,
+      req.project!.template,
+      req.project!.name,
+      req.user._id
+    );
+
+    let stat = await storage.statPath(workspaceId, projectId, relativePath);
+    if (!stat) {
+      // Check if MongoDB has this file and restore it to disk
+      const dbFile = await ProjectFile.findOne({ projectId: req.project!._id, path: relativePath });
+      if (dbFile && dbFile.type === 'file') {
+        await storage.writeFileContent(workspaceId, projectId, relativePath, dbFile.content ?? '');
+        stat = await storage.statPath(workspaceId, projectId, relativePath);
+      }
+    }
+
     if (!stat) {
       res.status(404).json({ success: false, message: 'That file does not exist.' });
       return;
@@ -195,7 +226,15 @@ export const writeFile = async (
 
     // Saving must not create a new file at an arbitrary path — creation goes
     // through POST /files so the explorer stays authoritative.
-    const stat = await storage.statPath(workspaceId, projectId, relativePath);
+    let stat = await storage.statPath(workspaceId, projectId, relativePath);
+    if (!stat) {
+      const dbFile = await ProjectFile.findOne({ projectId: req.project!._id, path: relativePath });
+      if (dbFile) {
+        await storage.writeFileContent(workspaceId, projectId, relativePath, content);
+        stat = await storage.statPath(workspaceId, projectId, relativePath);
+      }
+    }
+
     if (!stat) {
       res.status(404).json({ success: false, message: 'That file does not exist.' });
       return;
@@ -206,7 +245,7 @@ export const writeFile = async (
     }
 
     await storage.writeFileContent(workspaceId, projectId, relativePath, content);
-    await syncMetadata(req, relativePath, 'file');
+    await syncMetadata(req, relativePath, 'file', content);
 
     const updated = await storage.statPath(workspaceId, projectId, relativePath);
 
@@ -264,14 +303,14 @@ export const createEntry = async (
 
     if (type === 'folder') {
       await storage.createFolder(workspaceId, projectId, relativePath);
+      await syncMetadata(req, relativePath, 'folder');
     } else {
       await storage.createFile(workspaceId, projectId, relativePath);
       if (content) {
         await storage.writeFileContent(workspaceId, projectId, relativePath, content);
       }
+      await syncMetadata(req, relativePath, 'file', content || '');
     }
-
-    await syncMetadata(req, relativePath, type);
 
     res.status(201).json({
       success: true,

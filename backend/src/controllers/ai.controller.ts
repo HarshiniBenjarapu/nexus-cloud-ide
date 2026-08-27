@@ -25,12 +25,48 @@ ${prompt}
 
 Respond concisely and helpfully. When providing code, wrap it in appropriate markdown code blocks.`;
 
-    const result = await gemini.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: fullPrompt,
-    });
+    const candidateModels = [
+      process.env.GEMINI_MODEL,
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ].filter(Boolean) as string[];
 
-    const aiText = result.text || 'No response generated.';
+    // Deduplicate while preserving priority order
+    const modelsToTry = Array.from(new Set(candidateModels));
+
+    let result: any = null;
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
+      try {
+        result = await gemini.models.generateContent({
+          model,
+          contents: fullPrompt,
+        });
+        if (result) break;
+      } catch (err: any) {
+        lastError = err;
+        const msg = err?.message || '';
+        if (
+          msg.includes('404') ||
+          msg.includes('NOT_FOUND') ||
+          msg.includes('not found') ||
+          msg.includes('no longer available') ||
+          msg.includes('is not supported')
+        ) {
+          console.warn(`[AI Controller] Model "${model}" unavailable (${msg}), attempting fallback model...`);
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!result && lastError) {
+      throw lastError;
+    }
+
+    const aiText = result?.text || 'No response generated.';
 
     res.json({
       status: 'success',

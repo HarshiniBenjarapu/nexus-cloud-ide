@@ -322,6 +322,7 @@ export const buildTemplateFiles = (
       ];
 
     case 'Empty':
+    default:
       return [README(projectName, 'An empty project. Add your first file to begin.')];
   }
 };

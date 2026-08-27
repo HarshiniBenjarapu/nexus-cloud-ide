@@ -80,7 +80,8 @@ export const createProject = async (
       String(workspace._id),
       String(created._id),
       template,
-      created.name
+      created.name,
+      req.user._id
     );
 
     res.status(201).json({
@@ -289,6 +290,7 @@ export const duplicateProject = async (
           type: file.type,
           extension: file.extension,
           size: file.size,
+          content: file.content ?? '',
           createdBy: req.user._id,
           lastModifiedBy: null,
         }))
