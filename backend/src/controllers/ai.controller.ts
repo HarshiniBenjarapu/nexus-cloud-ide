@@ -10,7 +10,20 @@ export const generateAIResponse = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // getGeminiClient() throws if GEMINI_API_KEY is not set
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(200).json({
+        status: 'success',
+        data: {
+          id: `msg_ai_${Date.now()}`,
+          sender: 'assistant',
+          content: 'AI Copilot notice: GEMINI_API_KEY is not set in your Render environment variables. Please add GEMINI_API_KEY in your Render Dashboard under Environment.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      });
+      return;
+    }
+
     const gemini = getGeminiClient();
 
     const fullPrompt = `You are the AI assistant inside Nexus Cloud IDE — a professional cloud-based integrated development environment.
@@ -26,14 +39,12 @@ ${prompt}
 Respond concisely and helpfully. When providing code, wrap it in appropriate markdown code blocks.`;
 
     const candidateModels = [
-      process.env.GEMINI_MODEL,
       'gemini-3.6-flash',
+      process.env.GEMINI_MODEL,
       'gemini-3.5-flash-lite',
       'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-lite',
     ].filter(Boolean) as string[];
 
-    // Deduplicate while preserving priority order
     const modelsToTry = Array.from(new Set(candidateModels));
 
     let result: any = null;
@@ -48,24 +59,13 @@ Respond concisely and helpfully. When providing code, wrap it in appropriate mar
         if (result) break;
       } catch (err: any) {
         lastError = err;
-        const msg = err?.message || String(err);
-        
-        // If API key is missing or invalid, stop looping immediately
-        if (msg.includes('GEMINI_API_KEY is not set') || msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
-          throw err;
-        }
-
-        console.warn(`[AI Controller] Model "${model}" failed (${msg}), trying next fallback model...`);
+        console.warn(`[AI Controller] Model "${model}" failed, trying next fallback model...`);
       }
     }
 
-    if (!result && lastError) {
-      throw lastError;
-    }
+    const aiText = result?.text || (lastError ? `AI Assistant message: ${lastError.message}` : 'No response generated.');
 
-    const aiText = result?.text || 'No response generated.';
-
-    res.json({
+    res.status(200).json({
       status: 'success',
       data: {
         id: `msg_ai_${Date.now()}`,
@@ -80,31 +80,17 @@ Respond concisely and helpfully. When providing code, wrap it in appropriate mar
   } catch (error: any) {
     console.error('[AI Error]:', error?.message || error);
 
-    const msg: string = error?.message || String(error);
-    const isMissingKey = msg.includes('GEMINI_API_KEY is not set');
-    const isInvalidKey =
-      msg.includes('API key') ||
-      msg.includes('INVALID_ARGUMENT') ||
-      msg.includes('API_KEY_INVALID') ||
-      msg.includes('400') ||
-      msg.includes('401') ||
-      msg.includes('403');
-
-    if (isMissingKey) {
-      res.status(503).json({
-        status: 'error',
-        message: 'AI service is not configured: GEMINI_API_KEY is missing from Render environment variables.',
-      });
-    } else if (isInvalidKey) {
-      res.status(503).json({
-        status: 'error',
-        message: 'AI service error: The GEMINI_API_KEY on your Render backend is invalid or expired. Please update GEMINI_API_KEY in your Render dashboard using a valid key from https://aistudio.google.com.',
-      });
-    } else {
-      res.status(503).json({
-        status: 'error',
-        message: `AI service temporary error: ${msg || 'Unable to generate response'}. Please verify your GEMINI_API_KEY on Render.`,
-      });
-    }
+    res.status(200).json({
+      status: 'success',
+      data: {
+        id: `msg_ai_${Date.now()}`,
+        sender: 'assistant',
+        content: `AI Copilot notice: ${error?.message || 'Unable to complete request'}. Please verify your GEMINI_API_KEY in Render.`,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      },
+    });
   }
 };
