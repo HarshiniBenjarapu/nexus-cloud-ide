@@ -7,6 +7,12 @@ import { OrganizationMember } from '../models/OrganizationMember';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.service';
 
+// ─── Helper: Resolve first frontend URL from a potentially comma-separated list ─
+const getFrontendUrl = (): string => {
+  const origin = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+  return origin.split(',')[0].trim();
+};
+
 // ─── Helper: Sign a JWT ───────────────────────────────────────────────────────
 const signToken = (userId: string): string => {
   return jwt.sign(
@@ -81,8 +87,7 @@ export const register = async (
       role: 'Owner',
       invitedBy: user._id,
     });
-    const verificationUrl =
-      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${getFrontendUrl()}/verify-email?token=${verificationToken}`;
 
     await sendVerificationEmail(
       user.email,
@@ -252,9 +257,7 @@ export const githubCallback = async (
 
     const token = signToken(String(user._id));
 
-    res.redirect(
-      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/oauth/callback?token=${encodeURIComponent(token)}`
-    );
+    res.redirect(`${getFrontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
   } catch (error) {
     next(error);
   }
@@ -355,8 +358,7 @@ export const forgotPassword = async (
 
     await user.save();
 
-    const resetUrl =
-      `${process.env.CORS_ORIGIN || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${getFrontendUrl()}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail(user.email, user.fullName, resetUrl);
 

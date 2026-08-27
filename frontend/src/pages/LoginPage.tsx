@@ -120,20 +120,10 @@ export const LoginPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  const res = await socialLogin({
-                    provider: 'github',
-                    email: 'github.developer@nexus.dev',
-                    fullName: 'GitHub Developer',
-                    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-                  });
-                  localStorage.setItem('nexus_jwt', res.token);
-                  dispatch(showToast({ message: 'Authenticated via GitHub SSO!', type: 'success' }));
-                  window.location.href = '/dashboard';
-                } catch (err: any) {
-                  dispatch(showToast({ message: err.message || 'GitHub auth failed', type: 'error' }));
-                }
+              onClick={() => {
+                // Real GitHub OAuth Flow
+                const clientId = 'Ov23liqvOkBmJN8NFxCW';
+                window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email`;
               }}
               className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >

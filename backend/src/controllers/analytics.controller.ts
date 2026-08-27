@@ -1,24 +1,59 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
+import os from 'os';
+import fs from 'fs/promises';
+import path from 'path';
+
+const getDirSize = async (dirPath: string): Promise<number> => {
+  let size = 0;
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        size += await getDirSize(fullPath);
+      } else {
+        const stats = await fs.stat(fullPath);
+        size += stats.size;
+      }
+    }
+  } catch (err) {
+    // ignore missing dirs
+  }
+  return size;
+};
 
 export const getWorkspaceAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const workspaceId = req.params.workspaceId || 'default';
+    const workspacePath = path.resolve(__dirname, '..', '..', 'storage', 'projects', workspaceId);
+    
+    const bytesUsed = await getDirSize(workspacePath);
+    const storageUsedMb = Math.round(bytesUsed / (1024 * 1024));
+    
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const ramUsageMb = Math.round(usedMem / (1024 * 1024));
+    const ramLimitMb = Math.round(totalMem / (1024 * 1024));
+    
+    const cpus = os.cpus();
+    const loadAvg = os.loadavg()[0]; // 1 minute load average
+    const cpuUsagePct = Math.min(100, Math.round((loadAvg / cpus.length) * 100 * 10) / 10);
+
     res.json({
       status: 'success',
       data: {
-        storageUsedMb: 412,
-        storageLimitMb: 5120,
-        cpuUsagePct: 14.2,
-        ramUsageMb: 854,
-        ramLimitMb: 4096,
-        activeContainers: 2,
-        totalDeployments: 8,
-        buildSuccessRate: 98.5,
+        storageUsedMb,
+        storageLimitMb: 5120, // 5GB limit
+        cpuUsagePct,
+        ramUsageMb,
+        ramLimitMb,
+        activeContainers: 0, // Would need docker integration
+        totalDeployments: 0, // Would need DB query
+        buildSuccessRate: 100,
         activityLogs: [
-          { time: '10:14 AM', event: 'Git commit pushed to main branch' },
-          { time: '10:08 AM', event: 'One-click deployment published to Vercel Edge' },
-          { time: '09:45 AM', event: 'PostgreSQL database connection established' },
-          { time: '09:30 AM', event: 'Terminal session container bash #1 initialized' },
+          { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), event: 'Analytics dashboard accessed' }
         ],
       },
     });

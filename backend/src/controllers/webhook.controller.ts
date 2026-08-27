@@ -1,9 +1,35 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { Deployment } from '../models/Deployment';
 import { Project } from '../models/Project';
 
+/** Verify GitHub HMAC-SHA256 webhook signature to prevent unauthorized triggers. */
+const verifyGithubSignature = (req: Request): boolean => {
+  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  if (!secret) return true; // Skip validation if secret not configured (dev only)
+
+  const signature = req.headers['x-hub-signature-256'] as string | undefined;
+  if (!signature) return false;
+
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(JSON.stringify(req.body));
+  const digest = `sha256=${hmac.digest('hex')}`;
+
+  // Constant-time comparison to prevent timing attacks
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+};
+
+/** Escape a string so it is safe to embed in a RegExp literal. */
+const escapeRegex = (input: string): string =>
+  input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const handleGithubWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!verifyGithubSignature(req)) {
+      res.status(401).json({ status: 'error', message: 'Invalid webhook signature.' });
+      return;
+    }
+
     const payload = req.body;
     const ref = payload.ref || 'refs/heads/main';
     const commitMsg = payload.head_commit?.message || 'Automated git push trigger';
@@ -11,7 +37,8 @@ export const handleGithubWebhook = async (req: Request, res: Response): Promise<
 
     let project = null;
     if (repoName) {
-      project = await Project.findOne({ name: new RegExp(repoName, 'i') });
+      // Use escaped string for safe regex matching
+      project = await Project.findOne({ name: new RegExp(escapeRegex(repoName), 'i') });
     }
     if (!project) {
       project = await Project.findOne().sort({ createdAt: -1 });

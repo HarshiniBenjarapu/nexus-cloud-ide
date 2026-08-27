@@ -5,6 +5,9 @@ import { RegisterPage } from '../pages/RegisterPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { IDEPage } from '../pages/IDEPage';
 import { AdminPage } from '../pages/AdminPage';
+import { OAuthCallbackPage } from '../pages/OAuthCallbackPage';
+import { VerifyEmailPage } from '../pages/VerifyEmailPage';
+import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './guards';
 
 export const AppRoutes: React.FC = () => {
@@ -14,7 +17,12 @@ export const AppRoutes: React.FC = () => {
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
+
+      {/* Pages that handle their own auth state */}
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       {/* Authenticated application */}
       <Route element={<ProtectedRoute />}>

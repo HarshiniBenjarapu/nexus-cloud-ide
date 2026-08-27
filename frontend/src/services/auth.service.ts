@@ -49,3 +49,11 @@ export const socialLogin = async (payload: {
   const { data } = await apiClient.post<ApiSuccess<SessionData>>('/auth/social', payload);
   return data.data;
 };
+
+export const verifyEmail = async (token: string): Promise<void> => {
+  await apiClient.get(`/auth/verify-email?token=${token}`);
+};
+
+export const resetPassword = async (payload: { token: string; password: string }): Promise<void> => {
+  await apiClient.post('/auth/reset-password', payload);
+};

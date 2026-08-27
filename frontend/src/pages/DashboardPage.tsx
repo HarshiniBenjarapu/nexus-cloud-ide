@@ -15,7 +15,9 @@ import { CreateProjectDialog } from '../components/project/CreateProjectDialog';
 import { RenameProjectDialog } from '../components/project/RenameProjectDialog';
 import { DeleteProjectDialog } from '../components/project/DeleteProjectDialog';
 import { ProjectCardMenu } from '../components/project/ProjectCardMenu';
+import { useQuery } from '@tanstack/react-query';
 import { Project } from '../types';
+import { analyticsService } from '../services/analytics.service';
 import { Cloud, Plus, Star, Folder, GitBranch, Play, Layers, Terminal, HardDrive, Search, Loader2, Archive } from 'lucide-react';
 
 type ProjectFilter = 'all' | 'favorites' | 'archived';
@@ -54,6 +56,13 @@ export const DashboardPage: React.FC = () => {
 
   const { canContribute } = useProjectPermissions(memberRole);
   const updateProject = useUpdateProject(workspaceId);
+
+  const { data: analytics } = useQuery({
+    queryKey: ['workspace-analytics', workspaceId],
+    queryFn: () => analyticsService.getWorkspaceAnalytics(workspaceId!),
+    enabled: !!workspaceId,
+    refetchInterval: 30000,
+  });
 
   // Only Owners and Admins may create workspaces (SRS 2.7)
   const canCreateWorkspace =
@@ -186,7 +195,11 @@ export const DashboardPage: React.FC = () => {
               <HardDrive className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xl font-bold text-white">1.2 GB / 10 GB</div>
+              <div className="text-xl font-bold text-white">
+                {analytics 
+                  ? `${(analytics.storageUsedMb / 1024).toFixed(1)} GB / ${(analytics.storageLimitMb / 1024).toFixed(1)} GB`
+                  : '0.0 GB / 5.0 GB'}
+              </div>
               <div className="text-xs text-[#9DA5B4]">Cloud Storage Used</div>
             </div>
           </div>

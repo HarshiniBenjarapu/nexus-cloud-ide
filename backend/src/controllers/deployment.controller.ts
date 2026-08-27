@@ -7,6 +7,20 @@ import { listFiles, readFileContent, ensureProjectStorage } from '../services/st
 
 const VERCEL_API = 'https://api.vercel.com';
 
+/** Map project template names to the correct Vercel framework identifier. */
+const detectVercelFramework = (template?: string): string | null => {
+  if (!template) return null;
+  const t = template.toLowerCase();
+  if (t.includes('next')) return 'nextjs';
+  if (t.includes('vite') || t.includes('react') || t.includes('vue') || t.includes('svelte')) return 'vite';
+  if (t.includes('nuxt')) return 'nuxtjs';
+  if (t.includes('angular')) return 'angular';
+  if (t.includes('gatsby')) return 'gatsby';
+  if (t.includes('remix')) return 'remix';
+  // Node.js / blank projects don't need a Vercel framework preset
+  return null;
+};
+
 // ─── POST /api/deployments ───────────────────────────────────────────────────
 export const createDeployment = async (
   req: AuthRequest,
@@ -47,17 +61,20 @@ export const createDeployment = async (
 
         await collectFiles(tree);
 
+        const framework = detectVercelFramework(project.template);
+        const projectSettings: Record<string, string> = {
+          buildCommand: 'npm run build',
+          outputDirectory: 'dist',
+          installCommand: 'npm install',
+        };
+        if (framework) projectSettings.framework = framework;
+
         const response = await axios.post(
           `${VERCEL_API}/v13/deployments`,
           {
             name: project.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
             files: files.length > 0 ? files : [{ file: 'index.html', data: '<h1>Nexus App</h1>' }],
-            projectSettings: {
-              framework: 'vite',
-              buildCommand: 'npm run build',
-              outputDirectory: 'dist',
-              installCommand: 'npm install',
-            },
+            projectSettings,
             target: 'production',
             ...(Object.keys(envVars).length > 0 ? { env: envVars } : {}),
           },
