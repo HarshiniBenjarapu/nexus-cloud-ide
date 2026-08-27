@@ -18,7 +18,10 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
     let aiResponseText = '';
 
     // 1. Try Groq (Ultra-fast & generous free tier)
-    if (!aiResponseText && process.env.GROQ_API_KEY) {
+    const rawGroqKey = process.env.GROQ_API_KEY;
+    const groqKey = rawGroqKey ? rawGroqKey.replace(/["']/g, '').trim() : '';
+
+    if (!aiResponseText && groqKey) {
       try {
         const groqRes = await axios.post(
           'https://api.groq.com/openai/v1/chat/completions',
@@ -32,20 +35,22 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+              Authorization: `Bearer ${groqKey}`,
               'Content-Type': 'application/json',
             },
-            timeout: 10000,
+            timeout: 12000,
           }
         );
         aiResponseText = groqRes.data?.choices?.[0]?.message?.content;
       } catch (err: any) {
-        console.warn('[AI Controller] Groq API failed:', err?.response?.data?.error?.message || err.message);
+        console.warn('[AI Controller] Groq API error:', err?.response?.data?.error?.message || err.message);
       }
     }
 
     // 2. Try OpenRouter
-    if (!aiResponseText && process.env.OPENROUTER_API_KEY) {
+    const rawOpenRouterKey = process.env.OPENROUTER_API_KEY;
+    const openRouterKey = rawOpenRouterKey ? rawOpenRouterKey.replace(/["']/g, '').trim() : '';
+    if (!aiResponseText && openRouterKey) {
       try {
         const openRouterRes = await axios.post(
           'https://openrouter.ai/api/v1/chat/completions',
@@ -58,20 +63,22 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              Authorization: `Bearer ${openRouterKey}`,
               'Content-Type': 'application/json',
             },
-            timeout: 10000,
+            timeout: 12000,
           }
         );
         aiResponseText = openRouterRes.data?.choices?.[0]?.message?.content;
       } catch (err: any) {
-        console.warn('[AI Controller] OpenRouter API failed:', err?.response?.data?.error?.message || err.message);
+        console.warn('[AI Controller] OpenRouter API error:', err?.response?.data?.error?.message || err.message);
       }
     }
 
     // 3. Try OpenAI
-    if (!aiResponseText && process.env.OPENAI_API_KEY) {
+    const rawOpenAIKey = process.env.OPENAI_API_KEY;
+    const openAiKey = rawOpenAIKey ? rawOpenAIKey.replace(/["']/g, '').trim() : '';
+    if (!aiResponseText && openAiKey) {
       try {
         const openAiRes = await axios.post(
           'https://api.openai.com/v1/chat/completions',
@@ -84,15 +91,15 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              Authorization: `Bearer ${openAiKey}`,
               'Content-Type': 'application/json',
             },
-            timeout: 10000,
+            timeout: 12000,
           }
         );
         aiResponseText = openAiRes.data?.choices?.[0]?.message?.content;
       } catch (err: any) {
-        console.warn('[AI Controller] OpenAI API failed:', err?.response?.data?.error?.message || err.message);
+        console.warn('[AI Controller] OpenAI API error:', err?.response?.data?.error?.message || err.message);
       }
     }
 
@@ -115,11 +122,11 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
           }
         }
       } catch (err: any) {
-        console.warn('[AI Controller] Gemini API failed:', err.message);
+        console.warn('[AI Controller] Gemini API error:', err.message);
       }
     }
 
-    // 5. Smart Fallback response generator
+    // 5. Fallback response generator
     if (!aiResponseText) {
       const cleanPrompt = prompt.replace(/"/g, "'");
       aiResponseText = `I am Nexus AI Copilot! Here is a solution for your request:
