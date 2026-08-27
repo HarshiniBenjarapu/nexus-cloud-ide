@@ -17,33 +17,53 @@ ${fileContent ? `Active File Code:\n\`\`\`\n${fileContent}\n\`\`\`` : 'No active
 
     let aiResponseText = '';
 
-    // 1. Try Groq (Ultra-fast & generous free tier)
+    // 1. Try Groq (Ultra-fast & active model registry)
     const rawGroqKey = process.env.GROQ_API_KEY;
     const groqKey = rawGroqKey ? rawGroqKey.replace(/["']/g, '').trim() : '';
 
     if (!aiResponseText && groqKey) {
-      try {
-        const groqRes = await axios.post(
-          'https://api.groq.com/openai/v1/chat/completions',
-          {
-            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt },
-            ],
-            temperature: 0.7,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${groqKey}`,
-              'Content-Type': 'application/json',
+      const groqCandidateModels = [
+        process.env.GROQ_MODEL,
+        'qwen/qwen3.6-27b',
+        'groq/compound',
+        'groq/compound-mini',
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
+      ].filter(Boolean) as string[];
+
+      const groqModelsToTry = Array.from(new Set(groqCandidateModels));
+
+      for (const model of groqModelsToTry) {
+        try {
+          const groqRes = await axios.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            {
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt },
+              ],
+              temperature: 0.7,
             },
-            timeout: 12000,
+            {
+              headers: {
+                Authorization: `Bearer ${groqKey}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 12000,
+            }
+          );
+          
+          let content = groqRes.data?.choices?.[0]?.message?.content;
+          if (content) {
+            // Strip internal <think> reasoning tags if present
+            content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            aiResponseText = content;
+            break;
           }
-        );
-        aiResponseText = groqRes.data?.choices?.[0]?.message?.content;
-      } catch (err: any) {
-        console.warn('[AI Controller] Groq API error:', err?.response?.data?.error?.message || err.message);
+        } catch (err: any) {
+          console.warn(`[AI Controller] Groq model "${model}" failed:`, err?.response?.data?.error?.message || err.message);
+        }
       }
     }
 
