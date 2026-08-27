@@ -27,10 +27,10 @@ Respond concisely and helpfully. When providing code, wrap it in appropriate mar
 
     const candidateModels = [
       process.env.GEMINI_MODEL,
-      'gemini-2.0-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-2.5-flash-lite',
       'gemini-2.0-flash-lite',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
     ].filter(Boolean) as string[];
 
     // Deduplicate while preserving priority order
