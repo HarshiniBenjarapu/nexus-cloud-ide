@@ -32,7 +32,7 @@ const joinPath = (parent: string, name: string): string =>
 
 /** Keep the ProjectFile row for a path in step with what is now on disk. */
 const syncMetadata = async (
-  req: AuthorizedRequest,
+  req: AuthorizedRequest, 
   relativePath: string,
   type: 'file' | 'folder',
   content?: string
