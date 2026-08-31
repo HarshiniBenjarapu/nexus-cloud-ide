@@ -86,7 +86,11 @@ export const IDEPage: React.FC = () => {
             {/* Toggle Live Preview Pane */}
             {showLivePreview && (
               <div className="w-1/2 h-full">
-                <LivePreviewPanel onClose={() => setShowLivePreview(false)} />
+                <LivePreviewPanel
+                  projectId={routeProjectId}
+                  workspaceId={String(project.workspaceId)}
+                  onClose={() => setShowLivePreview(false)}
+                />
               </div>
             )}
 

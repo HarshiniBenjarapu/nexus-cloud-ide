@@ -20,6 +20,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import sandboxRoutes from './routes/sandbox.routes';
 import webhookRoutes from './routes/webhook.routes';
 import domainRoutes from './routes/domain.routes';
+import { proxyProjectPreview } from './controllers/terminal.controller';
 
 // Middleware imports
 import { errorHandler, notFound } from './middleware/error.middleware';
@@ -106,6 +107,8 @@ export const createApp = (): Application => {
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/projects', projectRoutes);
   app.use('/api/terminal', terminalRoutes);
+  app.get('/api/preview/:projectId', proxyProjectPreview);
+  app.get('/api/preview/:projectId/*', proxyProjectPreview);
   app.use('/api/git', gitRoutes);
   app.use('/api/database', databaseRoutes);
   app.use('/api/ai', aiRoutes);

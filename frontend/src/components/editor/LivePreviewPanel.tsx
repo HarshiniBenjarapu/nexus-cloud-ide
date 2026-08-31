@@ -1,20 +1,127 @@
-import React, { useState } from 'react';
-import { Smartphone, Tablet, Monitor, RefreshCw, ExternalLink, Shield, Globe } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Smartphone, Tablet, Monitor, RefreshCw, ExternalLink, Globe } from 'lucide-react';
+import { terminalService } from '../../services/terminal.service';
+import { API_BASE_URL } from '../../lib/apiClient';
 
 interface LivePreviewPanelProps {
   url?: string;
+  projectId?: string;
+  workspaceId?: string;
   onClose?: () => void;
 }
 
+const getPreviewBaseUrl = (): string => {
+  const configuredBase = (import.meta as any).env?.VITE_PREVIEW_BASE_URL || API_BASE_URL || '';
+  const resolvedBase = configuredBase.replace(/\/$/, '').replace(/\/api$/, '');
+  return `${resolvedBase}/api/preview`;
+};
+
+const buildPreviewUrl = (projectId?: string): string => {
+  const base = getPreviewBaseUrl();
+  if (!projectId) return base;
+  return `${base.replace(/\/$/, '')}/${encodeURIComponent(projectId)}`;
+};
+
+const DEFAULT_PREVIEW_URL = buildPreviewUrl();
+
+const normalizePreviewUrl = (candidate: string, fallback = DEFAULT_PREVIEW_URL): string => {
+  const trimmed = candidate.trim();
+  if (!trimmed) return fallback;
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.toString();
+  } catch {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    try {
+      return new URL(withProtocol).toString();
+    } catch {
+      return fallback;
+    }
+  }
+};
+
 export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
-  url = 'http://localhost:5174',
+  url,
+  projectId,
+  workspaceId,
   onClose,
 }) => {
+  const resolvedInitialUrl = url || buildPreviewUrl(projectId);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [key, setKey] = useState(0);
-  const [inputUrl, setInputUrl] = useState(url);
+  const [inputUrl, setInputUrl] = useState(() => normalizePreviewUrl(resolvedInitialUrl));
+  const [previewStatus, setPreviewStatus] = useState<'checking' | 'ready' | 'error'>('checking');
+  const autoStartAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    const nextUrl = url || buildPreviewUrl(projectId);
+    setInputUrl((previous) => normalizePreviewUrl(nextUrl, previous));
+  }, [projectId, url]);
+
+  const previewUrl = useMemo(() => normalizePreviewUrl(inputUrl), [inputUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setPreviewStatus('checking');
+
+    const probe = async () => {
+      try {
+        const response = await fetch(previewUrl, {
+          mode: 'cors',
+          cache: 'no-store',
+        });
+
+        if (!cancelled && response.ok) {
+          setPreviewStatus('ready');
+          return;
+        }
+
+        if (!cancelled) {
+          setPreviewStatus('error');
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewStatus('error');
+        }
+      }
+    };
+
+    probe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewUrl, key]);
+
+  useEffect(() => {
+    if (!projectId || !workspaceId || autoStartAttemptedRef.current) return;
+
+    autoStartAttemptedRef.current = true;
+
+    const startProject = async () => {
+      try {
+        const started = await terminalService.startProjectRuntime({ workspaceId, projectId });
+        if (started.url) {
+          setInputUrl(started.url);
+          setKey((prev) => prev + 1);
+        }
+      } catch {
+        // Swallow and let the user see the preview unavailable state.
+      }
+    };
+
+    startProject();
+  }, [projectId, workspaceId]);
 
   const handleRefresh = () => {
+    setKey((prev) => prev + 1);
+  };
+
+  const handleApplyUrl = () => {
+    const nextUrl = normalizePreviewUrl(inputUrl);
+    setInputUrl(nextUrl);
     setKey((prev) => prev + 1);
   };
 
@@ -32,9 +139,7 @@ export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#0F1115] border-l border-white/10 select-none overflow-hidden">
-      {/* Top Address & Viewport Bar */}
       <div className="h-10 bg-[#171A1F] border-b border-white/10 px-3 flex items-center justify-between">
-        {/* Device Viewport Mode Toggles */}
         <div className="flex items-center space-x-1 bg-[#0F1115] p-1 rounded-xl border border-white/5">
           <button
             onClick={() => setViewportMode('desktop')}
@@ -65,48 +170,77 @@ export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
           </button>
         </div>
 
-        {/* URL Bar */}
         <div className="flex-1 max-w-md mx-4 relative flex items-center">
           <Globe className="w-3.5 h-3.5 text-[#4CAF50] absolute left-2.5" />
           <input
             type="text"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleApplyUrl();
+              }
+            }}
             className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-1 pl-8 pr-8 text-xs text-white font-mono focus:outline-none focus:border-[#C58A42]"
+            aria-label="Preview URL"
           />
-          <button onClick={handleRefresh} className="p-1 text-[#9DA5B4] hover:text-white absolute right-1.5" title="Refresh Live App">
+          <button onClick={handleApplyUrl} className="p-1 text-[#9DA5B4] hover:text-white absolute right-1.5" title="Refresh Live App">
             <RefreshCw className="w-3 h-3" />
           </button>
         </div>
 
-        {/* External Link */}
         <div className="flex items-center space-x-2">
           <a
-            href={inputUrl}
+            href={previewUrl}
             target="_blank"
             rel="noreferrer"
             className="p-1 text-[#9DA5B4] hover:text-white rounded-lg flex items-center space-x-1 text-xs"
             title="Open in new window"
+            onClick={(e) => {
+              if (!previewUrl) {
+                e.preventDefault();
+              }
+            }}
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
           {onClose && (
-            <button onClick={onClose} className="text-[#9DA5B4] hover:text-white p-1 text-xs">
+            <button onClick={onClose} className="text-[#9DA5B4] hover:text-white p-1 text-xs" aria-label="Close preview">
               ✕
             </button>
           )}
         </div>
       </div>
 
-      {/* Frame Container */}
-      <div className="flex-1 bg-[#171A1F] flex items-center justify-center p-2 overflow-auto">
-        <div className={`transition-all duration-200 shadow-2xl rounded-xl overflow-hidden bg-white ${getViewportWidth()}`}>
+      <div className="flex-1 bg-[#171A1F] flex items-center justify-center p-2 overflow-auto relative">
+        {previewStatus !== 'ready' && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#101418]/90 backdrop-blur-[1px] px-6 text-center">
+            <div className="max-w-sm space-y-2 rounded-2xl border border-[#C58A42]/30 bg-[#0F1115]/90 p-4 shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#C58A42]">
+                {previewStatus === 'checking' ? 'Checking preview…' : 'Preview unavailable'}
+              </p>
+              <p className="text-sm text-[#E5E7EB]">
+                {previewStatus === 'checking'
+                  ? 'Waiting for the project to start on a local dev server.'
+                  : 'The app is not running yet. Start the project server and then reload this preview.'}
+              </p>
+              <p className="text-[11px] text-[#9DA5B4]">
+                Try running <span className="font-mono text-[#F8FAFC]">npm run dev</span> in the project root and open the local URL shown above.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className={`transition-all duration-200 shadow-2xl rounded-xl overflow-hidden bg-white ${getViewportWidth()} ${previewStatus === 'ready' ? 'opacity-100' : 'opacity-0'}`}>
           <iframe
             key={key}
-            src={inputUrl}
+            src={previewUrl}
             title="Nexus Shared Live Web Preview"
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            onLoad={() => setPreviewStatus('ready')}
+            onError={() => setPreviewStatus('error')}
           />
         </div>
       </div>
