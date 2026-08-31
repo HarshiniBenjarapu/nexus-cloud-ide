@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import http from 'http';
 import https from 'https';
 import path from 'path';
+import { Project } from '../models/Project';
 
 const ALLOWED_COMMANDS: Record<string, string> = {
   ls: '/bin/ls',
@@ -146,9 +147,76 @@ const proxyRequest = async (url: URL, req: Request, res: Response): Promise<void
   }
 };
 
+const startRuntimeForProject = async (req: Request, projectId: string, workspaceId?: string): Promise<{ port: number; publicUrl: string } | null> => {
+  const runtimeKey = String(projectId);
+  const existing = ACTIVE_PROJECT_RUNTIMES.get(runtimeKey);
+  if (existing) {
+   return { port: existing.port, publicUrl: existing.publicUrl };
+  }
+
+  if (!workspaceId) {
+   return null;
+  }
+
+  const projectDir = projectDirFor(workspaceId, projectId);
+  const runtime = await detectRuntime(projectDir);
+  if (!runtime) {
+   return null;
+  }
+
+  const publicUrl = buildPublicPreviewUrl(req, projectId);
+
+  if (runtime.type === 'npm') {
+   const installChild = spawn('npm', runtime.installArgs, {
+     cwd: projectDir,
+     detached: true,
+     stdio: 'ignore',
+     env: { ...process.env, BROWSER: 'none' },
+   });
+   installChild.unref();
+   await waitForExit(installChild);
+
+   const runtimeChild = spawn('npm', runtime.launchArgs, {
+     cwd: projectDir,
+     detached: true,
+     stdio: 'ignore',
+     env: { ...process.env, BROWSER: 'none' },
+   });
+   runtimeChild.unref();
+   ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
+     port: runtime.port,
+     pid: runtimeChild.pid ?? 0,
+     internalUrl: `http://127.0.0.1:${runtime.port}`,
+     publicUrl,
+   });
+  } else {
+   const staticChild = spawn(runtime.cmd, runtime.args, {
+     cwd: projectDir,
+     detached: true,
+     stdio: 'ignore',
+   });
+   staticChild.unref();
+   ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
+     port: runtime.port,
+     pid: staticChild.pid ?? 0,
+     internalUrl: `http://127.0.0.1:${runtime.port}`,
+     publicUrl,
+   });
+  }
+
+  return { port: runtime.port, publicUrl };
+};
+
 export const proxyProjectPreview = async (req: Request, res: Response): Promise<void> => {
   const projectId = String(req.params.projectId || '');
-  const runtime = ACTIVE_PROJECT_RUNTIMES.get(projectId);
+  let runtime = ACTIVE_PROJECT_RUNTIMES.get(projectId);
+
+  if (!runtime) {
+   const project = await Project.findById(projectId).lean().catch(() => null);
+   const workspaceId = project?.workspaceId ? String(project.workspaceId) : undefined;
+   const started = await startRuntimeForProject(req, projectId, workspaceId);
+   runtime = started ? ACTIVE_PROJECT_RUNTIMES.get(projectId) ?? null : null;
+  }
 
   if (!runtime) {
    res.status(404).json({
@@ -200,9 +268,8 @@ export const startProjectRuntime = async (req: Request, res: Response): Promise<
      return;
    }
 
-   const projectDir = projectDirFor(workspaceId, projectId);
-   const runtime = await detectRuntime(projectDir);
-   if (!runtime) {
+   const started = await startRuntimeForProject(req, projectId, workspaceId);
+   if (!started) {
      res.status(400).json({
        status: 'error',
        message: 'This project type does not have an auto-start runtime configured yet.',
@@ -210,52 +277,12 @@ export const startProjectRuntime = async (req: Request, res: Response): Promise<
      return;
    }
 
-   const publicUrl = buildPublicPreviewUrl(req, projectId);
-
-   if (runtime.type === 'npm') {
-     const installChild = spawn('npm', runtime.installArgs, {
-       cwd: projectDir,
-       detached: true,
-       stdio: 'ignore',
-       env: { ...process.env, BROWSER: 'none' },
-     });
-     installChild.unref();
-     await waitForExit(installChild);
-
-     const runtimeChild = spawn('npm', runtime.launchArgs, {
-       cwd: projectDir,
-       detached: true,
-       stdio: 'ignore',
-       env: { ...process.env, BROWSER: 'none' },
-     });
-     runtimeChild.unref();
-     ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
-       port: runtime.port,
-       pid: runtimeChild.pid ?? 0,
-       internalUrl: `http://127.0.0.1:${runtime.port}`,
-       publicUrl,
-     });
-   } else {
-     const staticChild = spawn(runtime.cmd, runtime.args, {
-       cwd: projectDir,
-       detached: true,
-       stdio: 'ignore',
-     });
-     staticChild.unref();
-     ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
-       port: runtime.port,
-       pid: staticChild.pid ?? 0,
-       internalUrl: `http://127.0.0.1:${runtime.port}`,
-       publicUrl,
-     });
-   }
-
    res.json({
      status: 'success',
      launched: true,
      alreadyRunning: false,
-     url: publicUrl,
-     port: runtime.port,
+     url: started.publicUrl,
+     port: started.port,
    });
   } catch (error: any) {
    res.status(500).json({ status: 'error', message: error.message || 'Failed to start project runtime.' });

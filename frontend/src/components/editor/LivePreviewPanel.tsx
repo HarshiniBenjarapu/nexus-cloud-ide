@@ -68,12 +68,18 @@ export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
 
     const probe = async () => {
       try {
-        await fetch(previewUrl, {
-          mode: 'no-cors',
+        const response = await fetch(previewUrl, {
+          mode: 'cors',
           cache: 'no-store',
         });
-        if (!cancelled) {
+
+        if (!cancelled && response.ok) {
           setPreviewStatus('ready');
+          return;
+        }
+
+        if (!cancelled) {
+          setPreviewStatus('error');
         }
       } catch {
         if (!cancelled) {
