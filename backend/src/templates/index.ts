@@ -289,7 +289,10 @@ export const buildTemplateFiles = (
           path: 'main.py',
           content: `def main() -> None:\n    print("${projectName} is running")\n\n\nif __name__ == "__main__":\n    main()\n`,
         },
-        { path: 'requirements.txt', content: '' },
+        {
+          path: 'requirements.txt',
+          content: '# Install dependencies with: pip install -r requirements.txt\nrequests>=2.32.0\n',
+        },
         {
           path: '.gitignore',
           content: '__pycache__/\n*.pyc\n.venv/\n.env\n',
