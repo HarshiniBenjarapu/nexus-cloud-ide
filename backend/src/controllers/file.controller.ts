@@ -28,11 +28,11 @@ const parentOf = (relativePath: string): string => {
 };
 
 const joinPath = (parent: string, name: string): string =>
-  parent ? `${parent}/${name}` : name;
+  parent ? `${parent}/${name}` : name; 
 
 /** Keep the ProjectFile row for a path in step with what is now on disk. */
 const syncMetadata = async (
-  req: AuthorizedRequest, 
+  req: AuthorizedRequest,  
   relativePath: string,
   type: 'file' | 'folder',
   content?: string
