@@ -5,6 +5,7 @@ import { AuthorizedRequest } from '../middleware/authorize.middleware';
 import { FileNodeDTO, FileContentDTO } from '../types/index';
 import { normalizeRelativePath, assertValidName } from '../utils/pathGuard';
 import * as storage from '../services/storage.service';
+import { getDefaultFileBoilerplate } from '../templates';
 
 /**
  * Module 6 — File Explorer.
@@ -306,10 +307,11 @@ export const createEntry = async (
       await syncMetadata(req, relativePath, 'folder');
     } else {
       await storage.createFile(workspaceId, projectId, relativePath);
-      if (content) {
-        await storage.writeFileContent(workspaceId, projectId, relativePath, content);
-      }
-      await syncMetadata(req, relativePath, 'file', content || '');
+      const initialContent = content !== undefined && content !== null && content !== ''
+        ? content
+        : getDefaultFileBoilerplate(name);
+      await storage.writeFileContent(workspaceId, projectId, relativePath, initialContent);
+      await syncMetadata(req, relativePath, 'file', initialContent);
     }
 
     res.status(201).json({

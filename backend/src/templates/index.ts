@@ -1,13 +1,5 @@
+import path from 'path';
 import { ProjectTemplate } from '../types/templates';
-
-/**
- * Template scaffolding (SRS Module 4 — Supported Project Templates).
- *
- * Each template is a flat list of relative paths and their starting contents.
- * Directories are created implicitly from the path segments. Kept deliberately
- * minimal: enough to be a runnable starting point without pretending to be a
- * full framework install (dependencies are not vendored).
- */
 
 export interface TemplateFile {
   path: string;
@@ -24,16 +16,24 @@ const GITIGNORE: TemplateFile = {
   content: 'node_modules/\ndist/\n.env\n*.log\n',
 };
 
+/** npm-safe package name derived from the project name. */
+const slug = (name: string): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'project';
+
 export const buildTemplateFiles = (
-  template: ProjectTemplate,
+  rawTemplate: ProjectTemplate | string,
   projectName: string
 ): TemplateFile[] => {
-  switch (template) {
-    case 'HTML':
-      return [
-        {
-          path: 'index.html',
-          content: `<!doctype html>
+  const norm = String(rawTemplate || '').trim().toLowerCase();
+
+  if (norm.includes('html')) {
+    return [
+      {
+        path: 'index.html',
+        content: `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -42,26 +42,49 @@ export const buildTemplateFiles = (
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <h1>${projectName}</h1>
-    <p>Edit index.html to get started.</p>
+    <div class="container">
+      <h1>Welcome to ${projectName}</h1>
+      <p>Your cloud environment is ready. Edit index.html to begin!</p>
+    </div>
     <script src="script.js"></script>
   </body>
 </html>
 `,
-        },
-        {
-          path: 'styles.css',
-          content: `body {\n  font-family: system-ui, sans-serif;\n  margin: 2rem;\n}\n`,
-        },
-        { path: 'script.js', content: `console.log('${projectName} ready');\n` },
-        README(projectName, 'A static HTML project.'),
-      ];
+      },
+      {
+        path: 'styles.css',
+        content: `body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 2rem;
+  background-color: #0F1115;
+  color: #FFFFFF;
+}
 
-    case 'CSS':
-      return [
-        {
-          path: 'index.html',
-          content: `<!doctype html>
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #171A1F;
+}
+
+h1 {
+  color: #C58A42;
+}
+`,
+      },
+      { path: 'script.js', content: `console.log('${projectName} static HTML app initialized.');\n` },
+      README(projectName, 'A static HTML project created with Nexus Cloud IDE.'),
+    ];
+  }
+
+  if (norm.includes('css')) {
+    return [
+      {
+        path: 'index.html',
+        content: `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -71,47 +94,104 @@ export const buildTemplateFiles = (
   <body>
     <div class="card">
       <h1>${projectName}</h1>
+      <p>Styled with modern CSS.</p>
     </div>
   </body>
 </html>
 `,
-        },
-        {
-          path: 'styles.css',
-          content: `:root {\n  --accent: #C58A42;\n}\n\n.card {\n  padding: 24px;\n  border-radius: 12px;\n  border: 1px solid rgba(0, 0, 0, 0.08);\n}\n`,
-        },
-        README(projectName, 'A CSS-focused project.'),
-      ];
+      },
+      {
+        path: 'styles.css',
+        content: `:root {
+  --accent: #C58A42;
+  --bg: #0F1115;
+}
 
-    case 'JavaScript':
-      return [
-        {
-          path: 'index.html',
-          content: `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>${projectName}</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="main.js"></script>
-  </body>
-</html>
+body {
+  background-color: var(--bg);
+  color: white;
+  font-family: system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.card {
+  padding: 32px;
+  border-radius: 16px;
+  background: #171A1F;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
 `,
-        },
-        {
-          path: 'main.js',
-          content: `const app = document.querySelector('#app');\napp.textContent = 'Hello from ${projectName}';\n`,
-        },
-        README(projectName, 'A vanilla JavaScript project.'),
-      ];
+      },
+      README(projectName, 'A CSS design project.'),
+    ];
+  }
 
-    case 'React':
-      return [
-        {
-          path: 'package.json',
-          content: `{
+  if (norm.includes('react') && norm.includes('express')) {
+    return [
+      {
+        path: 'client/package.json',
+        content: `{
+  "name": "${slug(projectName)}-client",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vite": "^8.2.0"
+  }
+}
+`,
+      },
+      {
+        path: 'client/src/App.tsx',
+        content: `import React from 'react';
+
+export default function App() {
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+      <h1>${projectName} Fullstack</h1>
+      <p>React Frontend + Express API Server</p>
+    </div>
+  );
+}
+`,
+      },
+      {
+        path: 'server/package.json',
+        content: `{
+  "name": "${slug(projectName)}-server",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
+`,
+      },
+      {
+        path: 'server/server.js',
+        content: `const express = require('express');
+const app = express();
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok', project: '${projectName}' }));
+app.listen(3001, () => console.log('API Server running on port 3001'));
+`,
+      },
+      GITIGNORE,
+      README(projectName, 'Fullstack React client + Express API project.'),
+    ];
+  }
+
+  if (norm.includes('react')) {
+    return [
+      {
+        path: 'package.json',
+        content: `{
   "name": "${slug(projectName)}",
   "private": true,
   "version": "0.1.0",
@@ -131,10 +211,10 @@ export const buildTemplateFiles = (
   }
 }
 `,
-        },
-        {
-          path: 'index.html',
-          content: `<!doctype html>
+      },
+      {
+        path: 'index.html',
+        content: `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -146,24 +226,52 @@ export const buildTemplateFiles = (
   </body>
 </html>
 `,
-        },
-        {
-          path: 'src/main.tsx',
-          content: `import { StrictMode } from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\n\ncreateRoot(document.getElementById('root')!).render(\n  <StrictMode>\n    <App />\n  </StrictMode>\n);\n`,
-        },
-        {
-          path: 'src/App.tsx',
-          content: `export default function App() {\n  return <h1>${projectName}</h1>;\n}\n`,
-        },
-        GITIGNORE,
-        README(projectName, 'A React + TypeScript project.'),
-      ];
+      },
+      {
+        path: 'src/main.tsx',
+        content: `import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
 
-    case 'Next.js':
-      return [
-        {
-          path: 'package.json',
-          content: `{
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+`,
+      },
+      {
+        path: 'src/App.tsx',
+        content: `import React, { useState } from 'react';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif', backgroundColor: '#0F1115', color: '#fff', minHeight: '100vh' }}>
+      <h1 style={{ color: '#C58A42' }}>${projectName}</h1>
+      <p>React + TypeScript project running in Nexus Cloud IDE.</p>
+      <button 
+        onClick={() => setCount(c => c + 1)}
+        style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: '#C58A42', color: '#fff', border: 'none', cursor: 'pointer' }}
+      >
+        Count is: {count}
+      </button>
+    </div>
+  );
+}
+`,
+      },
+      GITIGNORE,
+      README(projectName, 'A React + TypeScript project created in Nexus Cloud IDE.'),
+    ];
+  }
+
+  if (norm.includes('next')) {
+    return [
+      {
+        path: 'package.json',
+        content: `{
   "name": "${slug(projectName)}",
   "private": true,
   "version": "0.1.0",
@@ -179,47 +287,40 @@ export const buildTemplateFiles = (
   }
 }
 `,
-        },
-        {
-          path: 'app/page.tsx',
-          content: `export default function Home() {\n  return <main><h1>${projectName}</h1></main>;\n}\n`,
-        },
-        {
-          path: 'app/layout.tsx',
-          content: `export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body>{children}</body>\n    </html>\n  );\n}\n`,
-        },
-        GITIGNORE,
-        README(projectName, 'A Next.js application.'),
-      ];
-
-    case 'Node.js':
-      return [
-        {
-          path: 'package.json',
-          content: `{
-  "name": "${slug(projectName)}",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  }
+      },
+      {
+        path: 'app/page.tsx',
+        content: `export default function Home() {
+  return (
+    <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+      <h1>Welcome to ${projectName}</h1>
+      <p>Next.js App Router application built on Nexus Cloud IDE.</p>
+    </main>
+  );
 }
 `,
-        },
-        {
-          path: 'index.js',
-          content: `console.log('${projectName} is running');\n`,
-        },
-        GITIGNORE,
-        README(projectName, 'A Node.js project.'),
-      ];
+      },
+      {
+        path: 'app/layout.tsx',
+        content: `export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+`,
+      },
+      GITIGNORE,
+      README(projectName, 'A Next.js application.'),
+    ];
+  }
 
-    case 'Express.js':
-      return [
-        {
-          path: 'package.json',
-          content: `{
+  if (norm.includes('express')) {
+    return [
+      {
+        path: 'package.json',
+        content: `{
   "name": "${slug(projectName)}",
   "version": "1.0.0",
   "main": "server.js",
@@ -231,105 +332,214 @@ export const buildTemplateFiles = (
   }
 }
 `,
-        },
-        {
-          path: 'server.js',
-          content: `const express = require('express');\n\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\napp.use(express.json());\n\napp.get('/', (req, res) => {\n  res.json({ message: 'Welcome to ${projectName}' });\n});\n\napp.listen(PORT, () => {\n  console.log(\`Server listening on port \${PORT}\`);\n});\n`,
-        },
-        GITIGNORE,
-        README(projectName, 'An Express.js REST API.'),
-      ];
+      },
+      {
+        path: 'server.js',
+        content: `const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-    case 'React + Express':
-      return [
-        {
-          path: 'client/package.json',
-          content: `{
-  "name": "${slug(projectName)}-client",
-  "private": true,
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to ${projectName} API', status: 'healthy' });
+});
+
+app.listen(PORT, () => {
+  console.log(\`[Server] Listening on port \${PORT}\`);
+});
+`,
+      },
+      GITIGNORE,
+      README(projectName, 'An Express.js REST API.'),
+    ];
+  }
+
+  if (norm.includes('node') || norm.includes('js') || norm.includes('javascript')) {
+    return [
+      {
+        path: 'package.json',
+        content: `{
+  "name": "${slug(projectName)}",
+  "version": "1.0.0",
   "type": "module",
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "typescript": "^6.0.0",
-    "vite": "^8.2.0",
-    "@vitejs/plugin-react": "^6.0.0"
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
   }
 }
 `,
-        },
-        {
-          path: 'client/src/App.tsx',
-          content: `export default function App() {\n  return <h1>${projectName}</h1>;\n}\n`,
-        },
-        {
-          path: 'server/package.json',
-          content: `{
-  "name": "${slug(projectName)}-server",
-  "main": "server.js",
-  "dependencies": {
-    "express": "^4.19.2"
+      },
+      {
+        path: 'index.js',
+        content: `console.log('${projectName} is running!');\n\nfunction init() {\n  console.log('Nexus Cloud IDE Node.js execution ready.');\n}\n\ninit();\n`,
+      },
+      GITIGNORE,
+      README(projectName, 'A Node.js project.'),
+    ];
   }
+
+  if (norm.includes('py') || norm.includes('python')) {
+    return [
+      {
+        path: 'main.py',
+        content: `def main() -> None:
+    print("${projectName} Python project is running!")
+
+if __name__ == "__main__":
+    main()
+`,
+      },
+      { path: 'requirements.txt', content: '# Add Python dependencies here\n' },
+      {
+        path: '.gitignore',
+        content: '__pycache__/\n*.pyc\n.venv/\n.env\n',
+      },
+      README(projectName, 'A Python application.'),
+    ];
+  }
+
+  if (norm.includes('java')) {
+    return [
+      {
+        path: 'src/Main.java',
+        content: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("${projectName} Java project running!");
+    }
 }
 `,
-        },
-        {
-          path: 'server/server.js',
-          content: `const express = require('express');\n\nconst app = express();\napp.get('/api/health', (req, res) => res.json({ ok: true }));\napp.listen(3001, () => console.log('API on 3001'));\n`,
-        },
-        GITIGNORE,
-        README(projectName, 'A React client with an Express API server.'),
-      ];
-
-    case 'Python':
-      return [
-        {
-          path: 'main.py',
-          content: `def main() -> None:\n    print("${projectName} is running")\n\n\nif __name__ == "__main__":\n    main()\n`,
-        },
-        { path: 'requirements.txt', content: '' },
-        {
-          path: '.gitignore',
-          content: '__pycache__/\n*.pyc\n.venv/\n.env\n',
-        },
-        README(projectName, 'A Python project.'),
-      ];
-
-    case 'Java':
-      return [
-        {
-          path: 'src/Main.java',
-          content: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("${projectName} is running");\n    }\n}\n`,
-        },
-        { path: '.gitignore', content: '*.class\nout/\ntarget/\n' },
-        README(projectName, 'A Java project. Compile with `javac src/Main.java`.'),
-      ];
-
-    case 'C++':
-      return [
-        {
-          path: 'main.cpp',
-          content: `#include <iostream>\n\nint main() {\n    std::cout << "${projectName} is running" << std::endl;\n    return 0;\n}\n`,
-        },
-        {
-          path: 'Makefile',
-          content: `all:\n\tg++ -std=c++17 -o app main.cpp\n\nclean:\n\trm -f app\n`,
-        },
-        { path: '.gitignore', content: 'app\n*.o\n' },
-        README(projectName, 'A C++ project. Build with `make`.'),
-      ];
-
-    case 'Empty':
-    default:
-      return [README(projectName, 'An empty project. Add your first file to begin.')];
+      },
+      { path: '.gitignore', content: '*.class\nout/\ntarget/\n' },
+      README(projectName, 'A Java project.'),
+    ];
   }
+
+  if (norm.includes('c++') || norm.includes('cpp') || norm.includes('c')) {
+    return [
+      {
+        path: 'main.cpp',
+        content: `#include <iostream>
+
+int main() {
+    std::cout << "${projectName} C++ project running!" << std::endl;
+    return 0;
+}
+`,
+      },
+      {
+        path: 'Makefile',
+        content: `all:\n\tg++ -std=c++17 -o app main.cpp\n\nclean:\n\trm -f app\n`,
+      },
+      { path: '.gitignore', content: 'app\n*.o\n' },
+      README(projectName, 'A C++ project.'),
+    ];
+  }
+
+  // Default / Empty fallback
+  return [
+    {
+      path: 'main.js',
+      content: `console.log('Welcome to ${projectName}!');\n`,
+    },
+    README(projectName, 'A new project created in Nexus Cloud IDE.'),
+  ];
 };
 
-/** npm-safe package name derived from the project name. */
-const slug = (name: string): string =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'project';
+/**
+ * Returns intelligent default boilerplate code for single files created in File Explorer.
+ */
+export const getDefaultFileBoilerplate = (filename: string): string => {
+  const ext = path.extname(filename).toLowerCase().replace(/^\./, '');
+  const basename = path.basename(filename, path.extname(filename));
+  const componentName = basename.charAt(0).toUpperCase() + basename.slice(1);
+
+  switch (ext) {
+    case 'tsx':
+    case 'jsx':
+      return `import React from 'react';
+
+export default function ${componentName || 'Component'}() {
+  return (
+    <div style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+      <h2>${componentName || 'Component'}</h2>
+      <p>Created in Nexus Cloud IDE.</p>
+    </div>
+  );
+}
+`;
+
+    case 'ts':
+      return `/**
+ * ${filename}
+ */
+
+export interface AppConfig {
+  name: string;
+  version: string;
+}
+
+export function initialize(config: AppConfig): void {
+  console.log(\`[Nexus IDE] Initializing \${config.name} v\${config.version}\`);
+}
+`;
+
+    case 'js':
+      return `/**
+ * ${filename}
+ */
+
+console.log("Running ${filename}...");
+
+export function run() {
+  return { success: true };
+}
+`;
+
+    case 'html':
+      return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${componentName || 'Nexus Document'}</title>
+  </head>
+  <body>
+    <h1>${componentName || 'Nexus Document'}</h1>
+  </body>
+</html>
+`;
+
+    case 'css':
+      return `/* ${filename} */
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+`;
+
+    case 'py':
+      return `# ${filename}
+
+def main():
+    print("${filename} is running")
+
+if __name__ == "__main__":
+    main()
+`;
+
+    case 'json':
+      return `{
+  "name": "${basename.toLowerCase()}",
+  "version": "1.0.0"
+}
+`;
+
+    case 'md':
+      return `# ${basename}\n\nDocument created in **Nexus Cloud IDE**.\n`;
+
+    default:
+      return `// ${filename}\n`;
+  }
+};
