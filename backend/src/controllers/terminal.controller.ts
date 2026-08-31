@@ -95,6 +95,24 @@ const waitForExit = (child: ReturnType<typeof spawn>) =>
    child.once('close', (code) => resolve(code ?? 0));
   });
 
+const waitForListeningPort = async (port: number, timeoutMs = 20000): Promise<boolean> => {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+   try {
+     const controller = new AbortController();
+     const timeout = setTimeout(() => controller.abort(), 1500);
+     await fetch(`http://127.0.0.1:${port}`, { signal: controller.signal, method: 'GET' });
+     clearTimeout(timeout);
+     return true;
+   } catch {
+     await new Promise((resolve) => setTimeout(resolve, 300));
+   }
+  }
+
+  return false;
+};
+
 const buildPublicPreviewUrl = (req: Request, projectId: string): string => {
   const configuredBase = process.env.PUBLIC_PREVIEW_BASE?.replace(/\/$/, '');
   if (configuredBase) return `${configuredBase}/api/preview/${projectId}`;
@@ -187,6 +205,13 @@ const startRuntimeForProject = async (
      env: { ...process.env, BROWSER: 'none' },
    });
    runtimeChild.unref();
+
+   const isReady = await waitForListeningPort(runtime.port);
+   if (!isReady) {
+     ACTIVE_PROJECT_RUNTIMES.delete(runtimeKey);
+     return null;
+   }
+
    ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
      port: runtime.port,
      pid: runtimeChild.pid ?? 0,
@@ -200,6 +225,13 @@ const startRuntimeForProject = async (
      stdio: 'ignore',
    });
    staticChild.unref();
+
+   const isReady = await waitForListeningPort(runtime.port);
+   if (!isReady) {
+     ACTIVE_PROJECT_RUNTIMES.delete(runtimeKey);
+     return null;
+   }
+
    ACTIVE_PROJECT_RUNTIMES.set(runtimeKey, {
      port: runtime.port,
      pid: staticChild.pid ?? 0,
