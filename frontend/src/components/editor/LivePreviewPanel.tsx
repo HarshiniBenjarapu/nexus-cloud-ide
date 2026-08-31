@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Smartphone, Tablet, Monitor, RefreshCw, ExternalLink, Globe } from 'lucide-react';
 import { terminalService } from '../../services/terminal.service';
+import { API_BASE_URL } from '../../lib/apiClient';
 
 interface LivePreviewPanelProps {
   url?: string;
@@ -9,10 +10,19 @@ interface LivePreviewPanelProps {
   onClose?: () => void;
 }
 
-const DEFAULT_PREVIEW_URL =
-  (typeof window !== 'undefined' && (import.meta as any).env?.VITE_PREVIEW_BASE_URL)
-    ? `${(import.meta as any).env.VITE_PREVIEW_BASE_URL.replace(/\/$/, '')}:5174`
-    : 'http://localhost:5174';
+const getPreviewBaseUrl = (): string => {
+  const configuredBase = (import.meta as any).env?.VITE_PREVIEW_BASE_URL || API_BASE_URL || '';
+  const resolvedBase = configuredBase.replace(/\/$/, '').replace(/\/api$/, '');
+  return `${resolvedBase}/api/preview`;
+};
+
+const buildPreviewUrl = (projectId?: string): string => {
+  const base = getPreviewBaseUrl();
+  if (!projectId) return base;
+  return `${base.replace(/\/$/, '')}/${encodeURIComponent(projectId)}`;
+};
+
+const DEFAULT_PREVIEW_URL = buildPreviewUrl();
 
 const normalizePreviewUrl = (candidate: string, fallback = DEFAULT_PREVIEW_URL): string => {
   const trimmed = candidate.trim();
@@ -32,20 +42,22 @@ const normalizePreviewUrl = (candidate: string, fallback = DEFAULT_PREVIEW_URL):
 };
 
 export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
-  url = DEFAULT_PREVIEW_URL,
+  url,
   projectId,
   workspaceId,
   onClose,
 }) => {
+  const resolvedInitialUrl = url || buildPreviewUrl(projectId);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [key, setKey] = useState(0);
-  const [inputUrl, setInputUrl] = useState(() => normalizePreviewUrl(url));
+  const [inputUrl, setInputUrl] = useState(() => normalizePreviewUrl(resolvedInitialUrl));
   const [previewStatus, setPreviewStatus] = useState<'checking' | 'ready' | 'error'>('checking');
   const autoStartAttemptedRef = useRef(false);
 
   useEffect(() => {
-    setInputUrl((previous) => normalizePreviewUrl(url, previous));
-  }, [url]);
+    const nextUrl = url || buildPreviewUrl(projectId);
+    setInputUrl((previous) => normalizePreviewUrl(nextUrl, previous));
+  }, [projectId, url]);
 
   const previewUrl = useMemo(() => normalizePreviewUrl(inputUrl), [inputUrl]);
 
