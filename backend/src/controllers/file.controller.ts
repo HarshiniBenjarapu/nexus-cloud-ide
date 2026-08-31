@@ -18,7 +18,7 @@ import { getDefaultFileBoilerplate } from '../templates';
 
 /** Project scope for every storage and metadata call in this controller. */
 const scope = (req: AuthorizedRequest) => ({
-  workspaceId: String(req.project!.workspaceId), 
+  workspaceId: String(req.project!.workspaceId),  
   projectId: String(req.project!._id),
 });
 
