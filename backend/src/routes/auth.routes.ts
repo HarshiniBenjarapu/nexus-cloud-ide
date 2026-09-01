@@ -6,6 +6,7 @@ import {
     logout,
     socialAuth,
     githubCallback,
+    googleCallback,
     verifyEmail,
     forgotPassword,
     resetPassword,
@@ -33,6 +34,7 @@ router.post(
     resetPassword
 );
 router.get('/github/callback', githubCallback);
+router.get('/google/callback', googleCallback);
 // Protected routes
 router.get('/me', protect, getMe);
 

@@ -338,6 +338,118 @@ export const githubCallback = async (
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/google/callback  (Google OAuth2 Authorization Code Callback)
+// ─────────────────────────────────────────────────────────────────────────────
+export const googleCallback = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { code } = req.query;
+
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${getFrontendUrl(req)}/login?error=${encodeURIComponent('Google authorization code is required.')}`);
+      return;
+    }
+
+    const redirectUri = `${getFrontendUrl(req)}/oauth/callback`;
+
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    });
+
+    const { access_token } = tokenResponse.data;
+
+    if (!access_token) {
+      res.redirect(`${getFrontendUrl(req)}/login?error=${encodeURIComponent('Google token exchange failed.')}`);
+      return;
+    }
+
+    const googleUserRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    const googleUser = googleUserRes.data;
+    const userEmail = (googleUser.email || '').trim().toLowerCase();
+
+    if (!userEmail) {
+      res.redirect(`${getFrontendUrl(req)}/login?error=${encodeURIComponent('Could not retrieve email from Google.')}`);
+      return;
+    }
+
+    let user = await User.findOne({ email: userEmail });
+
+    if (!user) {
+      const emailPrefix = userEmail.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '_');
+      const username = `${emailPrefix.substring(0, 20)}_${Math.random().toString(36).substring(2, 6)}`;
+      const randomPassword = `google_oauth_${googleUser.id}_${Date.now()}`;
+
+      user = await User.create({
+        fullName: googleUser.name || emailPrefix,
+        username,
+        email: userEmail,
+        avatar: googleUser.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+        authProvider: 'google',
+        emailVerified: true,
+        passwordHash: randomPassword,
+      });
+
+      // Auto-create personal organization
+      const orgSlug = `${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
+      const org = await Organization.create({
+        name: `${user.fullName}'s Organization`,
+        slug: orgSlug,
+        ownerId: user._id,
+      });
+
+      await OrganizationMember.create({
+        organizationId: org._id,
+        userId: user._id,
+        role: 'Owner',
+        invitedBy: user._id,
+      });
+    } else {
+      if (user.authProvider !== 'google') {
+        user.authProvider = 'google';
+        user.emailVerified = true;
+        await user.save();
+      }
+
+      // Ensure user has at least one organization
+      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
+      if (!existingOrgMember) {
+        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
+        const org = await Organization.create({
+          name: `${user.fullName}'s Organization`,
+          slug: orgSlug,
+          ownerId: user._id,
+        });
+
+        await OrganizationMember.create({
+          organizationId: org._id,
+          userId: user._id,
+          role: 'Owner',
+          invitedBy: user._id,
+        });
+      }
+    }
+
+    const token = signToken(String(user._id));
+
+    res.redirect(`${getFrontendUrl(req)}/oauth/callback?token=${encodeURIComponent(token)}`);
+  } catch (error: any) {
+    console.error('[Google Callback Error]:', error.response?.data || error.message || error);
+    const errorMsg = error.response?.data?.error_description || error.message || 'Google authentication failed. Please try again.';
+    res.redirect(`${getFrontendUrl(req)}/login?error=${encodeURIComponent(errorMsg)}`);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/social  (GitHub / Google OAuth2 callback or SSO token exchange)
 // ─────────────────────────────────────────────────────────────────────────────
 export const socialAuth = async (
