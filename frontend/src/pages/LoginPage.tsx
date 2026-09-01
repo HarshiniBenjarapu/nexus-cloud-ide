@@ -29,6 +29,15 @@ export const LoginPage: React.FC = () => {
   const [googleName, setGoogleName] = useState('');
   const [isGooglePending, setIsGooglePending] = useState(false);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const errorParam = params.get('error');
+    if (errorParam) {
+      dispatch(showToast({ message: errorParam, type: 'error' }));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [dispatch]);
+
   const {
     register,
     handleSubmit,

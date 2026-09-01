@@ -322,8 +322,10 @@ export const githubCallback = async (
     const token = signToken(String(user._id));
 
     res.redirect(`${getFrontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error('[GitHub Callback Error]:', error.response?.data || error.message || error);
+    const errorMsg = error.response?.data?.error_description || error.message || 'GitHub authentication failed. Please try again.';
+    res.redirect(`${getFrontendUrl()}/login?error=${encodeURIComponent(errorMsg)}`);
   }
 };
 
