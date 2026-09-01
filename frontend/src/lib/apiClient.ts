@@ -75,9 +75,14 @@ const toApiError = (error: AxiosError<ApiErrorBody>): Error => {
     return new Error(data.message);
   }
 
+  if (error.response?.status === 404) {
+    const failedUrl = error.config?.url || 'unknown endpoint';
+    return new Error(`Endpoint not found (404): [${error.config?.method?.toUpperCase() || 'GET'}] ${failedUrl}`);
+  }
+
   if (error.code === 'ERR_NETWORK') {
     return new Error(
-      'Unable to reach the Nexus API. Please check that the backend is running.'
+      'Unable to reach the Nexus API. Please check that the backend is running and CORS is allowed.'
     );
   }
 
