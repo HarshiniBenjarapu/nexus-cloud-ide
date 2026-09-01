@@ -67,9 +67,15 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleGoogleClick = () => {
-    // Always show modal - the socialLogin API endpoint is fully functional
-    // Real Google OAuth requires GOOGLE_CLIENT_SECRET on Render which may not be configured
-    setShowGoogleModal(true);
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (googleClientId && googleClientId.includes('.apps.googleusercontent.com')) {
+      // Real Google OAuth — shows Google's account picker
+      const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&prompt=select_account`;
+    } else {
+      // Fallback: email-based modal (works without Google Cloud Console setup)
+      setShowGoogleModal(true);
+    }
   };
 
   const executeGoogleSSO = async (emailToUse?: string, nameToUse?: string) => {
@@ -93,13 +99,7 @@ export const LoginPage: React.FC = () => {
 
       dispatch(setCredentials({ token: res.token, user: res.user }));
       setShowGoogleModal(false);
-      dispatch(
-        showToast({
-          message: `Welcome, ${res.user.fullName}!`,
-          type: 'success',
-        })
-      );
-      // Small delay to let Redux state settle before navigating
+      dispatch(showToast({ message: `Welcome, ${res.user.fullName}!`, type: 'success' }));
       setTimeout(() => navigate('/dashboard', { replace: true }), 100);
     } catch (err: any) {
       dispatch(showToast({ message: err.message || 'Google authentication failed.', type: 'error' }));
@@ -109,9 +109,9 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleGitHubClick = () => {
-    // Always show modal - the socialLogin API endpoint is fully functional  
-    // Real GitHub OAuth requires GitHub App callback URL to be set to production backend
-    setShowGitHubModal(true);
+    // Real GitHub OAuth — redirects to GitHub login page
+    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liqvOkBmJN8NFxCW';
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email&prompt=select_account`;
   };
 
   const executeGitHubSSO = async () => {
@@ -136,13 +136,7 @@ export const LoginPage: React.FC = () => {
 
       dispatch(setCredentials({ token: res.token, user: res.user }));
       setShowGitHubModal(false);
-      dispatch(
-        showToast({
-          message: `Welcome, ${res.user.fullName}!`,
-          type: 'success',
-        })
-      );
-      // Small delay to let Redux state settle before navigating
+      dispatch(showToast({ message: `Welcome, ${res.user.fullName}!`, type: 'success' }));
       setTimeout(() => navigate('/dashboard', { replace: true }), 100);
     } catch (err: any) {
       dispatch(showToast({ message: err.message || 'GitHub authentication failed.', type: 'error' }));

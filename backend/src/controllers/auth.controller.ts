@@ -7,18 +7,17 @@ import { OrganizationMember } from '../models/OrganizationMember';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.service';
 
-// ─── Helper: Resolve frontend URL dynamically from request or configured env ─────
-const getFrontendUrl = (req?: Request): string => {
-  if (req) {
-    const rawOrigin = req.headers.origin || (req.headers.referer ? (() => {
-      try { return new URL(req.headers.referer).origin; } catch { return null; }
-    })() : null);
-    if (rawOrigin && !rawOrigin.includes('onrender.com')) {
-      return rawOrigin.replace(/\/$/, '');
-    }
+// ─── Helper: Resolve frontend URL ────────────────────────────────────────────
+// IMPORTANT: During OAuth callbacks (GitHub/Google redirects), the browser
+// follows a redirect and sends NO Origin header, so request-based detection
+// always falls back to localhost. We MUST use FRONTEND_URL env var on Render.
+const getFrontendUrl = (_req?: Request): string => {
+  // Always use env var first — this is the only reliable source during OAuth redirects
+  const configured = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '';
+  if (configured) {
+    return configured.split(',')[0].trim().replace(/\/$/, '');
   }
-  const configured = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
-  return configured.split(',')[0].trim().replace(/\/$/, '');
+  return 'http://localhost:5173';
 };
 
 const signToken = (userId: string): string => {
