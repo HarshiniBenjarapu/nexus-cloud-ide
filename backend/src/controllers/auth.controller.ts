@@ -258,7 +258,8 @@ export const githubCallback = async (
 
     let user = await User.findOne({ githubId: String(githubUser.id) });
 
-    if (!user && userEmail) {
+    // Only attempt email matching if githubId is not linked AND userEmail is a real email address (not a noreply fallback)
+    if (!user && userEmail && !userEmail.includes('noreply.github.com')) {
       user = await User.findOne({ email: userEmail });
     }
 
@@ -270,7 +271,7 @@ export const githubCallback = async (
         fullName: githubUser.name || githubUser.login,
         username,
         email: userEmail,
-        avatar: githubUser.avatar_url,
+        avatar: githubUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sanitizedLogin}`,
         authProvider: 'github',
         githubId: String(githubUser.id),
         emailVerified: true,
