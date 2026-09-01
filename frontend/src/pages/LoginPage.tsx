@@ -25,9 +25,12 @@ export const LoginPage: React.FC = () => {
   const dispatch = useDispatch();
   const login = useLogin();
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleName, setGoogleName] = useState('');
+  const [githubInput, setGithubInput] = useState('');
   const [isGooglePending, setIsGooglePending] = useState(false);
+  const [isGitHubPending, setIsGitHubPending] = useState(false);
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -65,7 +68,7 @@ export const LoginPage: React.FC = () => {
 
   const handleGoogleClick = () => {
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (googleClientId) {
+    if (googleClientId && googleClientId.includes('.apps.googleusercontent.com')) {
       const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile`;
     } else {
@@ -108,9 +111,49 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleGitHubOAuth = () => {
+  const handleGitHubClick = () => {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liqvOkBmJN8NFxCW';
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email`;
+    if (clientId && clientId !== 'placeholder') {
+      window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email`;
+    } else {
+      setShowGitHubModal(true);
+    }
+  };
+
+  const executeGitHubSSO = async () => {
+    const input = githubInput.trim();
+    if (!input) {
+      dispatch(showToast({ message: 'Please enter your GitHub username or email.', type: 'error' }));
+      return;
+    }
+
+    setIsGitHubPending(true);
+    try {
+      const email = input.includes('@') ? input : `${input}@users.noreply.github.com`;
+      const fullName = input.split('@')[0];
+      const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(input)}`;
+
+      const res = await socialLogin({
+        provider: 'github',
+        email,
+        fullName,
+        avatar,
+      });
+
+      dispatch(setCredentials({ token: res.token, user: res.user }));
+      dispatch(
+        showToast({
+          message: `Logged in as ${res.user.fullName}`,
+          type: 'success',
+        })
+      );
+      setShowGitHubModal(false);
+      navigate('/dashboard');
+    } catch (err: any) {
+      dispatch(showToast({ message: err.message || 'GitHub authentication failed.', type: 'error' }));
+    } finally {
+      setIsGitHubPending(false);
+    }
   };
 
   return (
@@ -242,16 +285,69 @@ export const LoginPage: React.FC = () => {
           <span className="bg-[#171A1F] px-3 text-[10px] text-[#9DA5B4] uppercase tracking-wider">Or continue with</span>
         </div>
 
-        {/* Social Authentication */}
+      {/* GitHub Sign-In Account Modal */}
+      {showGitHubModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm bg-[#171A1F] border border-white/10 rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setShowGitHubModal(false)}
+              className="absolute top-4 right-4 text-[#9DA5B4] hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+            
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 bg-[#C58A42]/10 rounded-xl border border-[#C58A42]/20 text-[#C58A42]">
+                <Code className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">GitHub Account Sign In</h3>
+                <p className="text-xs text-[#9DA5B4]">Sign in with your GitHub username or email</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                executeGitHubSSO();
+              }}
+              className="space-y-3 pt-1"
+            >
+              <div className="space-y-1">
+                <label className="text-xs text-[#9DA5B4]">GitHub Username or Email</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. harshini or user@github.com"
+                  value={githubInput}
+                  onChange={(e) => setGithubInput(e.target.value)}
+                  className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white placeholder-[#9DA5B4]/50 focus:outline-none focus:border-[#C58A42]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isGitHubPending || !githubInput.trim()}
+                className="w-full py-3 bg-[#C58A42] hover:bg-[#D69A4E] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-[#C58A42]/20 mt-2"
+              >
+                {isGitHubPending ? 'Signing in…' : 'Continue with GitHub Account'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Social Authentication */}
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={handleGitHubOAuth}
-              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              disabled={isGitHubPending}
+              onClick={handleGitHubClick}
+              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-60"
             >
               <Code className="w-4 h-4 text-[#C58A42]" />
-              <span>GitHub</span>
+              <span>{isGitHubPending ? 'Signing in...' : 'GitHub'}</span>
             </button>
             <button
               type="button"
