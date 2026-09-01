@@ -10,8 +10,8 @@ import { getStoredToken, clearStoredToken } from '../utils/storage';
  *  - normalize backend errors (SRS 8.6 envelope) into plain Error messages
  */
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://nexus-cloud-ide.onrender.com/api';
+const rawApiUrl = (import.meta.env.VITE_API_URL || 'https://nexus-cloud-ide.onrender.com/api').trim().replace(/\/$/, '');
+export const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

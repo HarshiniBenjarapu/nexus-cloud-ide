@@ -36,8 +36,8 @@ export const OAuthCallbackPage: React.FC = () => {
       }
 
       if (code) {
-        // Forward code to backend GitHub callback handler
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://nexus-cloud-ide.onrender.com/api';
+        const rawApiUrl = (import.meta.env.VITE_API_URL || 'https://nexus-cloud-ide.onrender.com/api').trim().replace(/\/$/, '');
+        const apiBaseUrl = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
         window.location.href = `${apiBaseUrl}/auth/github/callback?code=${encodeURIComponent(code)}`;
         return;
       }
