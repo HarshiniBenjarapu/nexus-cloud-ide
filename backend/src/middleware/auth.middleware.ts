@@ -40,7 +40,8 @@ export const protect = async (
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+    const secret = process.env.JWT_SECRET || 'nexus_cloud_ide_super_secret_jwt_key_2026';
+    const decoded: any = jwt.verify(token, secret);
 
     const user = await User.findById(decoded.userId).select('-passwordHash');
     if (!user) {

@@ -21,11 +21,11 @@ const getFrontendUrl = (req?: Request): string => {
   return configured.split(',')[0].trim().replace(/\/$/, '');
 };
 
-// ─── Helper: Sign a JWT ───────────────────────────────────────────────────────
 const signToken = (userId: string): string => {
+  const secret = process.env.JWT_SECRET || 'nexus_cloud_ide_super_secret_jwt_key_2026';
   return jwt.sign(
     { userId },
-    process.env.JWT_SECRET as string,
+    secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
   );
 };
