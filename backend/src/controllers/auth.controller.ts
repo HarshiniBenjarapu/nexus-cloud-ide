@@ -7,10 +7,18 @@ import { OrganizationMember } from '../models/OrganizationMember';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.service';
 
-// ─── Helper: Resolve first frontend URL from a potentially comma-separated list ─
-const getFrontendUrl = (): string => {
-  const origin = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
-  return origin.split(',')[0].trim();
+// ─── Helper: Resolve frontend URL dynamically from request or configured env ─────
+const getFrontendUrl = (req?: Request): string => {
+  if (req) {
+    const rawOrigin = req.headers.origin || (req.headers.referer ? (() => {
+      try { return new URL(req.headers.referer).origin; } catch { return null; }
+    })() : null);
+    if (rawOrigin && !rawOrigin.includes('onrender.com')) {
+      return rawOrigin.replace(/\/$/, '');
+    }
+  }
+  const configured = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+  return configured.split(',')[0].trim().replace(/\/$/, '');
 };
 
 // ─── Helper: Sign a JWT ───────────────────────────────────────────────────────
@@ -321,11 +329,11 @@ export const githubCallback = async (
 
     const token = signToken(String(user._id));
 
-    res.redirect(`${getFrontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
+    res.redirect(`${getFrontendUrl(req)}/oauth/callback?token=${encodeURIComponent(token)}`);
   } catch (error: any) {
     console.error('[GitHub Callback Error]:', error.response?.data || error.message || error);
     const errorMsg = error.response?.data?.error_description || error.message || 'GitHub authentication failed. Please try again.';
-    res.redirect(`${getFrontendUrl()}/login?error=${encodeURIComponent(errorMsg)}`);
+    res.redirect(`${getFrontendUrl(req)}/login?error=${encodeURIComponent(errorMsg)}`);
   }
 };
 
