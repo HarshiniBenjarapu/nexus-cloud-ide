@@ -8,7 +8,7 @@ import { showToast } from '../store/uiSlice';
 import { useLogin } from '../hooks/useAuth';
 import { socialLogin } from '../services/auth.service';
 import { setCredentials } from '../store/authSlice';
-import { Cloud, Lock, Mail, Globe, Code, X, CheckCircle2 } from 'lucide-react';
+import { Cloud, Lock, Mail, Globe, Code } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z
@@ -24,10 +24,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const login = useLogin();
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleEmailInput, setGoogleEmailInput] = useState('');
-  const [googleNameInput, setGoogleNameInput] = useState('');
-  const [isSocialPending, setIsSocialPending] = useState(false);
+  const [isGooglePending, setIsGooglePending] = useState(false);
 
   const {
     register,
@@ -54,11 +51,11 @@ export const LoginPage: React.FC = () => {
     });
   };
 
-  const handleGoogleSSO = async (customEmail?: string, customName?: string) => {
-    setIsSocialPending(true);
+  const handleGoogleSSO = async () => {
+    setIsGooglePending(true);
     try {
-      const email = customEmail?.trim() || 'google.developer@nexus.dev';
-      const fullName = customName?.trim() || (email.split('@')[0].toUpperCase());
+      const email = 'google.developer@nexus.dev';
+      const fullName = 'Google Developer';
       const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(email)}`;
 
       const res = await socialLogin({
@@ -75,98 +72,22 @@ export const LoginPage: React.FC = () => {
           type: 'success',
         })
       );
-      setShowGoogleModal(false);
       navigate('/dashboard');
     } catch (err: any) {
       dispatch(showToast({ message: err.message || 'Google authentication failed.', type: 'error' }));
     } finally {
-      setIsSocialPending(false);
+      setIsGooglePending(false);
     }
   };
 
   const handleGitHubOAuth = () => {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liqvOkBmJN8NFxCW';
-    const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email&redirect_uri=${redirectUri}`;
+    // Omit explicit redirect_uri so GitHub defaults to the authorized callback URL registered in the GitHub App
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email`;
   };
 
   return (
     <div className="min-h-screen w-screen bg-[#0F1115] text-white flex items-center justify-center p-4 font-sans select-none relative overflow-hidden">
-      {/* Google SSO Modal */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm bg-[#171A1F] border border-white/10 rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <button
-              onClick={() => setShowGoogleModal(false)}
-              className="absolute top-4 right-4 text-[#9DA5B4] hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 bg-[#4D8DFF]/10 rounded-xl border border-[#4D8DFF]/20 text-[#4D8DFF]">
-                <Globe className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Google SSO Authentication</h3>
-                <p className="text-xs text-[#9DA5B4]">Sign in using your Google account</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-1">
-              <button
-                type="button"
-                disabled={isSocialPending}
-                onClick={() => handleGoogleSSO('google.developer@nexus.dev', 'Google Developer')}
-                className="w-full py-2.5 px-3 bg-[#20242B] hover:bg-[#2A2E37] border border-white/10 rounded-xl text-xs text-left flex items-center justify-between transition-all group"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-7 h-7 rounded-full bg-[#4D8DFF]/20 text-[#4D8DFF] flex items-center justify-center font-bold text-xs">
-                    G
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white group-hover:text-[#4D8DFF] transition-colors">
-                      Google Developer
-                    </div>
-                    <div className="text-[11px] text-[#9DA5B4]">google.developer@nexus.dev</div>
-                  </div>
-                </div>
-                <CheckCircle2 className="w-4 h-4 text-[#4D8DFF] opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-
-              <div className="relative flex items-center justify-center my-2">
-                <div className="border-t border-white/10 w-full" />
-                <span className="bg-[#171A1F] px-2 text-[10px] text-[#9DA5B4] uppercase">Or enter email</span>
-              </div>
-
-              <div className="space-y-2">
-                <input
-                  type="email"
-                  placeholder="name@gmail.com"
-                  value={googleEmailInput}
-                  onChange={(e) => setGoogleEmailInput(e.target.value)}
-                  className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-2 px-3 text-xs text-white placeholder-[#9DA5B4]/50 focus:outline-none focus:border-[#4D8DFF]"
-                />
-                <input
-                  type="text"
-                  placeholder="Full Name (optional)"
-                  value={googleNameInput}
-                  onChange={(e) => setGoogleNameInput(e.target.value)}
-                  className="w-full bg-[#0F1115] border border-white/10 rounded-xl py-2 px-3 text-xs text-white placeholder-[#9DA5B4]/50 focus:outline-none focus:border-[#4D8DFF]"
-                />
-                <button
-                  type="button"
-                  disabled={isSocialPending || !googleEmailInput.trim()}
-                  onClick={() => handleGoogleSSO(googleEmailInput, googleNameInput)}
-                  className="w-full py-2.5 bg-[#4D8DFF] hover:bg-[#3B7BEB] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-xs transition-all shadow-md shadow-[#4D8DFF]/20 mt-1"
-                >
-                  {isSocialPending ? 'Authenticating...' : 'Sign in with Custom Google Account'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="w-full max-w-md p-8 bg-[#171A1F] border border-white/10 rounded-2xl shadow-2xl space-y-6">
         {/* Brand */}
         <div className="text-center space-y-2">
@@ -244,11 +165,12 @@ export const LoginPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setShowGoogleModal(true)}
-              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              disabled={isGooglePending}
+              onClick={handleGoogleSSO}
+              className="py-2.5 bg-[#20242B] hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-60"
             >
               <Globe className="w-4 h-4 text-[#4D8DFF]" />
-              <span>Google</span>
+              <span>{isGooglePending ? 'Signing in...' : 'Google'}</span>
             </button>
           </div>
         </div>
