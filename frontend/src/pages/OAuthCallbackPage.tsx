@@ -16,25 +16,34 @@ export const OAuthCallbackPage: React.FC = () => {
     const handleCallback = async () => {
       const searchParams = new URLSearchParams(location.search);
       const token = searchParams.get('token');
+      const code = searchParams.get('code');
 
-      if (!token) {
-        dispatch(showToast({ message: 'Authentication failed: No token provided.', type: 'error' }));
-        navigate('/login', { replace: true });
+      if (token) {
+        try {
+          // Store token & sync Redux auth state
+          setStoredToken(token);
+          const user = await fetchCurrentUser();
+          
+          dispatch(setCredentials({ token, user }));
+          dispatch(showToast({ message: 'Successfully authenticated with GitHub!', type: 'success' }));
+          navigate('/dashboard', { replace: true });
+          return;
+        } catch (error: any) {
+          dispatch(showToast({ message: error.message || 'Authentication failed. Please try again.', type: 'error' }));
+          navigate('/login', { replace: true });
+          return;
+        }
+      }
+
+      if (code) {
+        // Forward code to backend GitHub callback handler
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://nexus-cloud-ide.onrender.com/api';
+        window.location.href = `${apiBaseUrl}/auth/github/callback?code=${encodeURIComponent(code)}`;
         return;
       }
 
-      try {
-        // Temporarily store the token so the API client can use it for fetchCurrentUser
-        setStoredToken(token);
-        const user = await fetchCurrentUser();
-        
-        dispatch(setCredentials({ token, user }));
-        dispatch(showToast({ message: 'Successfully authenticated with GitHub!', type: 'success' }));
-        navigate('/dashboard', { replace: true });
-      } catch (error) {
-        dispatch(showToast({ message: 'Authentication failed. Please try again.', type: 'error' }));
-        navigate('/login', { replace: true });
-      }
+      dispatch(showToast({ message: 'Authentication failed: No authentication token or code provided.', type: 'error' }));
+      navigate('/login', { replace: true });
     };
 
     handleCallback();

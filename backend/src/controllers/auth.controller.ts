@@ -228,67 +228,53 @@ export const githubCallback = async (
     });
 
     const githubUser = githubResponse.data;
+    let userEmail = githubUser.email;
+
+    if (!userEmail) {
+      try {
+        const emailsResponse = await axios.get('https://api.github.com/user/emails', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github+json',
+          },
+        });
+        if (Array.isArray(emailsResponse.data)) {
+          const primary =
+            emailsResponse.data.find((e: any) => e.primary && e.verified) ||
+            emailsResponse.data.find((e: any) => e.verified) ||
+            emailsResponse.data[0];
+          if (primary?.email) {
+            userEmail = primary.email;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch GitHub email list:', e);
+      }
+    }
+
+    if (!userEmail) {
+      userEmail = `${githubUser.login}@users.noreply.github.com`;
+    }
 
     let user = await User.findOne({ githubId: String(githubUser.id) });
 
-    if (!user && githubUser.email) {
-      user = await User.findOne({ email: githubUser.email });
+    if (!user && userEmail) {
+      user = await User.findOne({ email: userEmail });
     }
 
     if (!user) {
-      const username = `${githubUser.login}_${Math.random().toString(36).substring(2, 6)}`;
+      const sanitizedLogin = (githubUser.login || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const username = `${sanitizedLogin.substring(0, 20)}_${Math.random().toString(36).substring(2, 6)}`;
 
       user = await User.create({
         fullName: githubUser.name || githubUser.login,
         username,
-        email: githubUser.email,
+        email: userEmail,
         avatar: githubUser.avatar_url,
         authProvider: 'github',
         githubId: String(githubUser.id),
         emailVerified: true,
-        passwordHash: `github_${String(githubUser.id)}_${Date.now()}`,
-      });
-    } else if (!user.githubId) {
-      user.githubId = String(githubUser.id);
-      user.authProvider = 'github';
-      user.emailVerified = true;
-      await user.save();
-    }
-
-    const token = signToken(String(user._id));
-
-    res.redirect(`${getFrontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
-  } catch (error) {
-    next(error);
-  }
-};
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/social  (GitHub / Google OAuth2 callback or SSO token exchange)
-// ─────────────────────────────────────────────────────────────────────────────
-export const socialAuth = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { provider, email, fullName, avatar, providerId } = req.body;
-
-    if (!email || !provider) {
-      res.status(400).json({ success: false, message: 'Provider and email are required.' });
-      return;
-    }
-
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      const username = `${email.split('@')[0]}_${Math.random().toString(36).substring(2, 6)}`;
-      user = await User.create({
-        fullName: fullName || email.split('@')[0],
-        username,
-        email,
-        avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
-        emailVerified: true,
-        authProvider: provider.toLowerCase() === 'github' ? 'github' : 'google',
+        passwordHash: `github_oauth_${String(githubUser.id)}_${Date.now()}`,
       });
 
       // Auto-create personal organization
@@ -305,6 +291,105 @@ export const socialAuth = async (
         role: 'Owner',
         invitedBy: user._id,
       });
+    } else {
+      if (!user.githubId) {
+        user.githubId = String(githubUser.id);
+        user.authProvider = 'github';
+        user.emailVerified = true;
+        await user.save();
+      }
+
+      // Ensure user has at least one organization
+      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
+      if (!existingOrgMember) {
+        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
+        const org = await Organization.create({
+          name: `${user.fullName}'s Organization`,
+          slug: orgSlug,
+          ownerId: user._id,
+        });
+
+        await OrganizationMember.create({
+          organizationId: org._id,
+          userId: user._id,
+          role: 'Owner',
+          invitedBy: user._id,
+        });
+      }
+    }
+
+    const token = signToken(String(user._id));
+
+    res.redirect(`${getFrontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/social  (GitHub / Google OAuth2 callback or SSO token exchange)
+// ─────────────────────────────────────────────────────────────────────────────
+export const socialAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { provider, email, fullName, avatar } = req.body;
+
+    if (!email || !provider) {
+      res.status(400).json({ success: false, message: 'Provider and email are required.' });
+      return;
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      const emailPrefix = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const username = `${emailPrefix.substring(0, 20)}_${Math.random().toString(36).substring(2, 6)}`;
+      const randomPassword = `social_sso_${provider}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      user = await User.create({
+        fullName: fullName || email.split('@')[0],
+        username,
+        email,
+        avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+        emailVerified: true,
+        authProvider: provider.toLowerCase() === 'github' ? 'github' : 'google',
+        passwordHash: randomPassword,
+      });
+
+      // Auto-create personal organization
+      const orgSlug = `${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
+      const org = await Organization.create({
+        name: `${user.fullName}'s Organization`,
+        slug: orgSlug,
+        ownerId: user._id,
+      });
+
+      await OrganizationMember.create({
+        organizationId: org._id,
+        userId: user._id,
+        role: 'Owner',
+        invitedBy: user._id,
+      });
+    } else {
+      // Ensure existing user has an organization
+      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
+      if (!existingOrgMember) {
+        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
+        const org = await Organization.create({
+          name: `${user.fullName}'s Organization`,
+          slug: orgSlug,
+          ownerId: user._id,
+        });
+
+        await OrganizationMember.create({
+          organizationId: org._id,
+          userId: user._id,
+          role: 'Owner',
+          invitedBy: user._id,
+        });
+      }
     }
 
     const token = signToken(String(user._id));
