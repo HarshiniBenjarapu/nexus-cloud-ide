@@ -30,6 +30,46 @@ const signToken = (userId: string): string => {
   );
 };
 
+// ─── Helper: Ensure user has a personal organization with duplicate key resilience ─
+const ensureUserHasOrganization = async (user: any): Promise<{ id: any; name: string; slug: string }> => {
+  const existingMember = await OrganizationMember.findOne({ userId: user._id });
+  if (existingMember) {
+    const existingOrg = await Organization.findById(existingMember.organizationId);
+    if (existingOrg) {
+      return { id: existingOrg._id, name: existingOrg.name, slug: existingOrg.slug };
+    }
+  }
+
+  const baseSlug = (user.username || 'user').toLowerCase().replace(/[^a-z0-9]/g, '-');
+  let orgSlug = `${baseSlug}-personal`;
+  let org;
+
+  try {
+    org = await Organization.create({
+      name: `${user.fullName || 'User'}'s Organization`,
+      slug: orgSlug,
+      ownerId: user._id,
+    });
+  } catch (err) {
+    const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+    orgSlug = `${baseSlug}-${uniqueSuffix}-personal`;
+    org = await Organization.create({
+      name: `${user.fullName || 'User'}'s Organization`,
+      slug: orgSlug,
+      ownerId: user._id,
+    });
+  }
+
+  await OrganizationMember.create({
+    organizationId: org._id,
+    userId: user._id,
+    role: 'Owner',
+    invitedBy: user._id,
+  });
+
+  return { id: org._id, name: org.name, slug: org.slug };
+};
+
 // ─── Helper: Build safe user response object ─────────────────────────────────
 // Note: no `role` here. A user has no global role — authority is per
 // organization and is returned as `memberRole` on each organization.
@@ -285,21 +325,6 @@ export const githubCallback = async (
         emailVerified: true,
         passwordHash: `github_oauth_${String(githubUser.id)}_${Date.now()}`,
       });
-
-      // Auto-create personal organization
-      const orgSlug = `${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
-      const org = await Organization.create({
-        name: `${user.fullName}'s Organization`,
-        slug: orgSlug,
-        ownerId: user._id,
-      });
-
-      await OrganizationMember.create({
-        organizationId: org._id,
-        userId: user._id,
-        role: 'Owner',
-        invitedBy: user._id,
-      });
     } else {
       if (!user.githubId) {
         user.githubId = String(githubUser.id);
@@ -307,25 +332,9 @@ export const githubCallback = async (
         user.emailVerified = true;
         await user.save();
       }
-
-      // Ensure user has at least one organization
-      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
-      if (!existingOrgMember) {
-        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
-        const org = await Organization.create({
-          name: `${user.fullName}'s Organization`,
-          slug: orgSlug,
-          ownerId: user._id,
-        });
-
-        await OrganizationMember.create({
-          organizationId: org._id,
-          userId: user._id,
-          role: 'Owner',
-          invitedBy: user._id,
-        });
-      }
     }
+
+    await ensureUserHasOrganization(user);
 
     const token = signToken(String(user._id));
 
@@ -419,25 +428,9 @@ export const googleCallback = async (
         user.emailVerified = true;
         await user.save();
       }
-
-      // Ensure user has at least one organization
-      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
-      if (!existingOrgMember) {
-        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
-        const org = await Organization.create({
-          name: `${user.fullName}'s Organization`,
-          slug: orgSlug,
-          ownerId: user._id,
-        });
-
-        await OrganizationMember.create({
-          organizationId: org._id,
-          userId: user._id,
-          role: 'Owner',
-          invitedBy: user._id,
-        });
-      }
     }
+
+    await ensureUserHasOrganization(user);
 
     const token = signToken(String(user._id));
 
@@ -480,40 +473,9 @@ export const socialAuth = async (
         authProvider: provider.toLowerCase() === 'github' ? 'github' : 'google',
         passwordHash: randomPassword,
       });
-
-      // Auto-create personal organization
-      const orgSlug = `${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
-      const org = await Organization.create({
-        name: `${user.fullName}'s Organization`,
-        slug: orgSlug,
-        ownerId: user._id,
-      });
-
-      await OrganizationMember.create({
-        organizationId: org._id,
-        userId: user._id,
-        role: 'Owner',
-        invitedBy: user._id,
-      });
-    } else {
-      // Ensure existing user has an organization
-      const existingOrgMember = await OrganizationMember.findOne({ userId: user._id });
-      if (!existingOrgMember) {
-        const orgSlug = `${user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}-personal`;
-        const org = await Organization.create({
-          name: `${user.fullName}'s Organization`,
-          slug: orgSlug,
-          ownerId: user._id,
-        });
-
-        await OrganizationMember.create({
-          organizationId: org._id,
-          userId: user._id,
-          role: 'Owner',
-          invitedBy: user._id,
-        });
-      }
     }
+
+    const defaultOrg = await ensureUserHasOrganization(user);
 
     const token = signToken(String(user._id));
 
